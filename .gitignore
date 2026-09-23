@@ -1,3 +1,5 @@
 *.retry
 .DS_Store
 *.tar.gz
+__pycache__/
+*.pyc
