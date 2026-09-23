@@ -52,6 +52,12 @@
     hashicorp_release_version: "{{ consul_version }}"
     hashicorp_release_bin_dir: "{{ consul_bin_dir }}"
 
+- name: Queue a restart when a different binary was unpacked
+  ansible.builtin.debug:
+    msg: "consul {{ consul_version }} unpacked"
+  changed_when: hashicorp_release_result is changed
+  notify: "restart consul"
+
 - name: Ensure the consul directories exist
   ansible.builtin.file:
     path: "{{ item.path }}"

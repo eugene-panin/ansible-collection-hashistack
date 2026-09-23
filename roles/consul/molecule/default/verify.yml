@@ -14,6 +14,22 @@
       become: false
       no_log: true
 
+    - name: Ask the running agent which version it is
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/agent/self
+        validate_certs: false
+        headers:
+          X-Consul-Token: "{{ _consul_verify_token.content | b64decode | trim }}"
+        return_content: true
+      register: _consul_verify_self
+      no_log: true
+
+    - name: Assert the upgrade restarted the agent onto the new binary
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_self.json.Config.Version == '1.20.2'
+        quiet: true
+
     - name: List what the role keeps in the PKI directory on the controller
       ansible.builtin.find:
         paths: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"

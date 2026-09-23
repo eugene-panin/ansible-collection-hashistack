@@ -58,6 +58,7 @@
     owner: root
     group: root
     mode: '0755'
+  register: hashicorp_release_result
   when:
     - not _hashicorp_release_present | bool
     - not ansible_check_mode
