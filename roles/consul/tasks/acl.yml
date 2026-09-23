@@ -1,0 +1,185 @@
+---
+- name: Check whether the bootstrap token was already saved
+  ansible.builtin.stat:
+    path: "{{ _consul_bootstrap_token_path }}"
+  register: _consul_bootstrap_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Bootstrap the ACL system
+  ansible.builtin.command:
+    argv:
+      - "{{ consul_bin_dir }}/consul"
+      - acl
+      - bootstrap
+      - -format=json
+  environment:
+    CONSUL_HTTP_ADDR: "{{ _consul_api_addr }}"
+    CONSUL_HTTP_SSL_VERIFY: "false"
+  register: _consul_bootstrap
+  when:
+    - _consul_live | bool
+    - _consul_gossip_primary | bool
+    - not _consul_bootstrap_stat.stat.exists
+  changed_when: _consul_bootstrap.rc == 0
+  no_log: true
+
+- name: Save the bootstrap token on the controller
+  ansible.builtin.copy:
+    content: "{{ (_consul_bootstrap.stdout | from_json).SecretID }}\n"
+    dest: "{{ _consul_bootstrap_token_path }}"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  when: _consul_bootstrap.stdout is defined
+  no_log: true
+
+- name: Read the bootstrap token
+  ansible.builtin.slurp:
+    src: "{{ _consul_bootstrap_token_path }}"
+  register: _consul_bootstrap_slurp
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: _consul_bootstrap_stat.stat.exists or _consul_bootstrap.stdout is defined
+  no_log: true
+
+- name: Write the agent policy to the node
+  ansible.builtin.copy:
+    content: |
+      node_prefix "" {
+        policy = "write"
+      }
+      service_prefix "" {
+        policy = "read"
+      }
+      session_prefix "" {
+        policy = "read"
+      }
+      agent_prefix "" {
+        policy = "read"
+      }
+    dest: "{{ consul_config_dir }}/agent-policy.hcl"
+    owner: root
+    group: "{{ consul_group }}"
+    mode: '0640'
+  when: _consul_gossip_primary | bool
+
+- name: Read the existing agent policy
+  ansible.builtin.command:
+    argv:
+      - "{{ consul_bin_dir }}/consul"
+      - acl
+      - policy
+      - read
+      - -name
+      - "{{ _consul_acl_policy_name }}"
+  environment: "{{ _consul_acl_env }}"
+  register: _consul_policy_read
+  when:
+    - _consul_live | bool
+    - _consul_gossip_primary | bool
+    - _consul_management_token | length > 0
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Create the agent policy
+  ansible.builtin.command:
+    argv:
+      - "{{ consul_bin_dir }}/consul"
+      - acl
+      - policy
+      - create
+      - -name
+      - "{{ _consul_acl_policy_name }}"
+      - -description
+      - "Agent policy for {{ consul_datacenter }}"
+      - -rules
+      - "@{{ consul_config_dir }}/agent-policy.hcl"
+  environment: "{{ _consul_acl_env }}"
+  when:
+    - _consul_live | bool
+    - _consul_gossip_primary | bool
+    - _consul_policy_read.rc is defined
+    - _consul_policy_read.rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Check whether the agent token was already saved
+  ansible.builtin.stat:
+    path: "{{ _consul_agent_token_path }}"
+  register: _consul_agent_token_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Create the agent token
+  ansible.builtin.command:
+    argv:
+      - "{{ consul_bin_dir }}/consul"
+      - acl
+      - token
+      - create
+      - -description
+      - "Agent token for {{ consul_datacenter }}"
+      - -policy-name
+      - "{{ _consul_acl_policy_name }}"
+      - -format=json
+  environment: "{{ _consul_acl_env }}"
+  register: _consul_agent_token_create
+  when:
+    - _consul_live | bool
+    - _consul_gossip_primary | bool
+    - _consul_management_token | length > 0
+    - not _consul_agent_token_stat.stat.exists
+  changed_when: _consul_agent_token_create.rc == 0
+  no_log: true
+
+- name: Save the agent token on the controller
+  ansible.builtin.copy:
+    content: "{{ (_consul_agent_token_create.stdout | from_json).SecretID }}\n"
+    dest: "{{ _consul_agent_token_path }}"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  when: _consul_agent_token_create.stdout is defined
+  no_log: true
+
+- name: Read the agent token
+  ansible.builtin.slurp:
+    src: "{{ _consul_agent_token_path }}"
+  register: _consul_agent_token_slurp
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: _consul_agent_token_stat.stat.exists or _consul_agent_token_create.stdout is defined
+  no_log: true
+
+- name: Read the tokens this agent has persisted
+  ansible.builtin.slurp:
+    src: "{{ consul_data_dir }}/acl-tokens.json"
+  register: _consul_persisted_tokens
+  failed_when: false
+  no_log: true
+
+- name: Hand the agent its token
+  ansible.builtin.command:
+    argv:
+      - "{{ consul_bin_dir }}/consul"
+      - acl
+      - set-agent-token
+      - agent
+      - "{{ _consul_agent_token }}"
+  environment: "{{ _consul_acl_env }}"
+  when:
+    - _consul_live | bool
+    - _consul_agent_token | length > 0
+    - _consul_management_token | length > 0
+    - _consul_agent_token not in (_consul_persisted_tokens.content | default('') | b64decode)
+  changed_when: true
+  no_log: true

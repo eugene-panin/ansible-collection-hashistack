@@ -1,0 +1,17 @@
+---
+_hashicorp_release_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+  armv7l: arm
+
+_hashicorp_release_arch: "{{ _hashicorp_release_arch_map[ansible_facts['architecture']] | default('') }}"
+
+_hashicorp_release_archive: >-
+  {{ hashicorp_release_product }}_{{ hashicorp_release_version }}_linux_{{ _hashicorp_release_arch }}.zip
+
+_hashicorp_release_url: >-
+  {{ hashicorp_release_base_url }}/{{ hashicorp_release_product }}/{{ hashicorp_release_version }}/{{ _hashicorp_release_archive }}
+
+_hashicorp_release_sums_url: >-
+  {{ hashicorp_release_base_url }}/{{ hashicorp_release_product }}/{{ hashicorp_release_version
+  }}/{{ hashicorp_release_product }}_{{ hashicorp_release_version }}_SHA256SUMS

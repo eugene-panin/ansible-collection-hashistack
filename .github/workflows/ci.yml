@@ -1,0 +1,72 @@
+---
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linters
+        run: python -m pip install --upgrade ansible-core ansible-lint yamllint
+
+      - name: yamllint
+        run: yamllint .
+
+      - name: ansible-lint
+        run: ansible-lint --profile production
+
+  molecule:
+    name: molecule (${{ matrix.role }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [hashicorp_release, consul]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install molecule
+        run: >-
+          python -m pip install --upgrade
+          ansible-core molecule 'molecule-plugins[docker]' docker
+
+      - name: molecule test
+        run: molecule test --all
+        working-directory: roles/${{ matrix.role }}
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ansible-core
+        run: python -m pip install --upgrade ansible-core
+
+      - name: Build the collection artifact
+        run: ansible-galaxy collection build --output-path dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: collection
+          path: dist/*.tar.gz

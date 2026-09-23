@@ -1,0 +1,6 @@
+---
+hashicorp_release_product: ""
+hashicorp_release_version: ""
+hashicorp_release_bin_dir: /usr/local/bin
+hashicorp_release_download_dir: /var/cache/hashicorp
+hashicorp_release_base_url: https://releases.hashicorp.com

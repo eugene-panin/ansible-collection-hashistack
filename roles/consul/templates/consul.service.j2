@@ -1,0 +1,26 @@
+{{ ansible_managed | comment }}
+[Unit]
+Description=Consul
+Documentation=https://developer.hashicorp.com/consul/docs
+Requires=network-online.target
+After=network-online.target
+ConditionFileNotEmpty={{ consul_config_dir }}/consul.json
+
+[Service]
+User={{ consul_user }}
+Group={{ consul_group }}
+ExecStart={{ consul_bin_dir }}/consul agent -config-dir={{ consul_config_dir }}
+ExecReload=/bin/kill --signal HUP $MAINPID
+KillMode=process
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths={{ consul_data_dir }} {{ consul_config_dir }}
+
+[Install]
+WantedBy=multi-user.target

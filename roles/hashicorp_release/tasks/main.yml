@@ -1,0 +1,63 @@
+---
+- name: Validate role inputs
+  ansible.builtin.assert:
+    that:
+      - hashicorp_release_product | length > 0
+      - hashicorp_release_version | length > 0
+      - _hashicorp_release_arch | length > 0
+    fail_msg: >-
+      hashicorp_release_product and hashicorp_release_version are required, and
+      {{ ansible_facts['architecture'] }} must be one of
+      {{ _hashicorp_release_arch_map.keys() | list | join(', ') }}
+    quiet: true
+
+- name: Read the installed version
+  ansible.builtin.command:
+    argv:
+      - "{{ hashicorp_release_bin_dir }}/{{ hashicorp_release_product }}"
+      - version
+  register: _hashicorp_release_installed
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Decide whether the wanted version is already in place
+  ansible.builtin.set_fact:
+    _hashicorp_release_present: >-
+      {{ _hashicorp_release_installed.rc == 0
+         and _hashicorp_release_installed.stdout is search(_hashicorp_release_version_pattern) }}
+  vars:
+    _hashicorp_release_version_pattern: "v{{ hashicorp_release_version | regex_escape }}(\\D|$)"
+
+- name: Ensure the download directory exists
+  ansible.builtin.file:
+    path: "{{ hashicorp_release_download_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: not _hashicorp_release_present | bool
+
+- name: Download the release, verified against its published checksums
+  ansible.builtin.get_url:
+    url: "{{ _hashicorp_release_url }}"
+    dest: "{{ hashicorp_release_download_dir }}/{{ _hashicorp_release_archive }}"
+    checksum: "sha256:{{ _hashicorp_release_sums_url }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - not _hashicorp_release_present | bool
+    - not ansible_check_mode
+
+- name: Unpack the binary
+  ansible.builtin.unarchive:
+    src: "{{ hashicorp_release_download_dir }}/{{ _hashicorp_release_archive }}"
+    dest: "{{ hashicorp_release_bin_dir }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - not _hashicorp_release_present | bool
+    - not ansible_check_mode

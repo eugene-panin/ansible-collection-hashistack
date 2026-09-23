@@ -1,0 +1,12 @@
+---
+- name: Reload the systemd daemon
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: "reload systemd"
+
+- name: Restart consul
+  ansible.builtin.systemd_service:
+    name: consul
+    state: restarted
+  when: _consul_live | bool
+  listen: "restart consul"

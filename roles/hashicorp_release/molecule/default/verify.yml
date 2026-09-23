@@ -1,0 +1,19 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read the installed version
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/consul
+          - version
+      register: _hashicorp_release_after
+      changed_when: false
+
+    - name: Assert the upgrade replaced the binary
+      ansible.builtin.assert:
+        that:
+          - "'Consul v1.20.2' in _hashicorp_release_after.stdout"
+        quiet: true

@@ -1,0 +1,84 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
+  tasks:
+    - name: Read the bootstrap token
+      ansible.builtin.slurp:
+        src: "{{ consul_acl_token_path }}"
+      register: _consul_verify_token
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Ask the agent who the leader is
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/status/leader
+        validate_certs: false
+        return_content: true
+      register: _consul_verify_leader
+
+    - name: Assert a leader was elected over TLS
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_leader.content | length > 2
+        quiet: true
+
+    - name: Assert the plain HTTP port is not listening
+      ansible.builtin.wait_for:
+        port: 8500
+        host: 127.0.0.1
+        state: stopped
+        timeout: 5
+
+    - name: Read this node from the catalog with the bootstrap token
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/catalog/nodes
+        validate_certs: false
+        headers:
+          X-Consul-Token: "{{ _consul_verify_token.content | b64decode | trim }}"
+        return_content: true
+      register: _consul_verify_nodes
+      no_log: true
+
+    - name: Assert the node registered itself
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_nodes.json | length == 1
+        quiet: true
+
+    - name: Read the catalog without a token
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/catalog/nodes
+        validate_certs: false
+        return_content: true
+      register: _consul_verify_anonymous
+
+    - name: Assert an anonymous reader sees nothing
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_anonymous.json | length == 0
+        quiet: true
+
+    - name: Assert gossip encryption is on
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/consul
+          - keyring
+          - -list
+      environment:
+        CONSUL_HTTP_ADDR: https://127.0.0.1:8501
+        CONSUL_HTTP_SSL_VERIFY: "false"
+        CONSUL_HTTP_TOKEN: "{{ _consul_verify_token.content | b64decode | trim }}"
+      register: _consul_verify_keyring
+      changed_when: false
+      no_log: true
+
+    - name: Assert the keyring holds a key
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_keyring.rc == 0
+        quiet: true

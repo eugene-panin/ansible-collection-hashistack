@@ -1,0 +1,66 @@
+---
+- name: Check whether consul is already installed
+  ansible.builtin.stat:
+    path: "{{ consul_bin_dir }}/consul"
+  register: _consul_binary_stat
+  check_mode: false
+
+- name: Ensure the consul group exists
+  ansible.builtin.group:
+    name: "{{ consul_group }}"
+    system: true
+    state: present
+
+- name: Ensure the consul user exists
+  ansible.builtin.user:
+    name: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ consul_data_dir }}"
+    create_home: false
+    state: present
+
+- name: Refresh the apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts['os_family'] == 'Debian'
+  register: _consul_apt_cache
+  until: _consul_apt_cache is succeeded
+  retries: 30
+  delay: 10
+  changed_when: false
+  check_mode: false
+
+- name: Ensure unzip is installed
+  ansible.builtin.package:
+    name: unzip
+    state: present
+  register: _consul_unzip
+  until: _consul_unzip is succeeded
+  retries: 30
+  delay: 10
+
+- name: Install the consul binary
+  ansible.builtin.include_role:
+    name: eugene_panin.hashistack.hashicorp_release
+  vars:
+    hashicorp_release_product: consul
+    hashicorp_release_version: "{{ consul_version }}"
+    hashicorp_release_bin_dir: "{{ consul_bin_dir }}"
+
+- name: Ensure the consul directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ consul_config_dir }}"
+      mode: '0750'
+    - path: "{{ consul_data_dir }}"
+      mode: '0700'
+  loop_control:
+    label: "{{ item.path }}"

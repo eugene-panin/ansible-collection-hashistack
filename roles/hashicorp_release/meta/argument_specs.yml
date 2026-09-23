@@ -1,0 +1,32 @@
+---
+argument_specs:
+  main:
+    short_description: Install a HashiCorp binary
+    description:
+      - Downloads a release from releases.hashicorp.com, checks it against the
+        published SHA256SUMS for that version, and unpacks the binary.
+      - Skipped entirely when the wanted version is already installed, so it
+        costs one command per run on a converged host.
+      - Called by the consul, nomad and vault roles; usable on its own for any
+        other HashiCorp product that ships the same way.
+    options:
+      hashicorp_release_product:
+        type: str
+        required: true
+        description: Product name as it appears in the release URL, such as consul.
+      hashicorp_release_version:
+        type: str
+        required: true
+        description: Exact version, without a leading v.
+      hashicorp_release_bin_dir:
+        type: str
+        default: /usr/local/bin
+        description: Where the binary is unpacked.
+      hashicorp_release_download_dir:
+        type: str
+        default: /var/cache/hashicorp
+        description: Where the downloaded archive is kept.
+      hashicorp_release_base_url:
+        type: str
+        default: https://releases.hashicorp.com
+        description: Release mirror, for hosts that cannot reach HashiCorp directly.

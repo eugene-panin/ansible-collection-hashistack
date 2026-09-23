@@ -1,0 +1,87 @@
+---
+_consul_role: "{{ 'server' if consul_server | bool else 'client' }}"
+_consul_cert_cn: "{{ _consul_role }}.{{ consul_datacenter }}.consul"
+_consul_cert_stem: "{{ consul_datacenter }}-{{ _consul_role }}-{{ consul_node_name }}"
+
+_consul_pki_live: "{{ _consul_ca_stat.stat.exists | default(false) or not ansible_check_mode }}"
+_consul_live: "{{ not (ansible_check_mode and not _consul_binary_stat.stat.exists | default(false)) }}"
+
+_consul_api_scheme: "{{ 'https' if consul_tls | bool else 'http' }}"
+_consul_api_port: "{{ 8501 if consul_tls | bool else 8500 }}"
+_consul_api_addr: "{{ _consul_api_scheme }}://127.0.0.1:{{ _consul_api_port }}"
+
+_consul_acl_policy_name: "agent-{{ consul_datacenter }}"
+_consul_bootstrap_token_path: "{{ consul_acl_token_path }}"
+_consul_agent_token_path: "{{ consul_acl_token_path | dirname }}/{{ consul_datacenter }}-agent.token"
+
+_consul_management_token: "{{ _consul_bootstrap_slurp.content | default('') | b64decode | trim }}"
+_consul_agent_token: "{{ _consul_agent_token_slurp.content | default('') | b64decode | trim }}"
+
+_consul_acl_env:
+  CONSUL_HTTP_ADDR: "{{ _consul_api_addr }}"
+  CONSUL_HTTP_SSL_VERIFY: "false"
+  CONSUL_HTTP_TOKEN: "{{ _consul_management_token }}"
+
+_consul_gossip_primary: "{{ inventory_hostname == ansible_play_hosts | first }}"
+_consul_gossip_value: "{{ consul_gossip_key if consul_gossip_key | length > 0 else _consul_gossip_shared | default('') }}"
+
+_consul_cert_sans: >-
+  {{ ['DNS:' ~ _consul_cert_cn, 'DNS:localhost', 'IP:127.0.0.1']
+     + ['IP:' ~ consul_bind_address] }}
+
+_consul_ca_cert: "{{ consul_pki_dir }}/consul-agent-ca.pem"
+_consul_ca_key: "{{ consul_pki_dir }}/consul-agent-ca-key.pem"
+_consul_local_cert: "{{ consul_pki_dir }}/{{ _consul_cert_stem }}.pem"
+_consul_local_key: "{{ consul_pki_dir }}/{{ _consul_cert_stem }}-key.pem"
+
+_consul_remote_ca: "{{ consul_tls_dir }}/ca.pem"
+_consul_remote_cert: "{{ consul_tls_dir }}/agent.pem"
+_consul_remote_key: "{{ consul_tls_dir }}/agent-key.pem"
+
+_consul_gossip_key_path: "{{ consul_config_dir }}/gossip.key"
+
+_consul_base_config:
+  datacenter: "{{ consul_datacenter }}"
+  node_name: "{{ consul_node_name }}"
+  data_dir: "{{ consul_data_dir }}"
+  bind_addr: "{{ consul_bind_address }}"
+  advertise_addr: "{{ consul_advertise_address }}"
+  client_addr: "{{ consul_client_address }}"
+  server: "{{ consul_server | bool }}"
+  log_level: "{{ consul_log_level }}"
+  retry_join: "{{ consul_retry_join }}"
+  ui_config:
+    enabled: "{{ consul_ui | bool }}"
+
+_consul_server_config:
+  bootstrap_expect: "{{ consul_bootstrap_expect | int }}"
+
+_consul_acl_config:
+  acl:
+    enabled: true
+    default_policy: "{{ consul_acl_default_policy }}"
+    down_policy: extend-cache
+    enable_token_persistence: true
+
+_consul_tls_config:
+  tls:
+    defaults:
+      ca_file: "{{ _consul_remote_ca }}"
+      cert_file: "{{ _consul_remote_cert }}"
+      key_file: "{{ _consul_remote_key }}"
+      verify_incoming: false
+      verify_outgoing: true
+    internal_rpc:
+      verify_incoming: true
+      verify_server_hostname: true
+  ports:
+    http: -1
+    https: 8501
+
+_consul_config: >-
+  {{ _consul_base_config
+     | combine(_consul_server_config if consul_server | bool else {})
+     | combine(_consul_acl_config if consul_acl | bool else {})
+     | combine(_consul_tls_config if consul_tls | bool else {})
+     | combine({'encrypt': _consul_gossip_value} if _consul_gossip_value | length > 0 else {})
+     | combine(consul_extra_config, recursive=True) }}

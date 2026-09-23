@@ -1,0 +1,9 @@
+---
+profile: production
+exclude_paths:
+  - .cache/
+  - .github/
+skip_list: []
+warn_list:
+  - experimental
+offline: true

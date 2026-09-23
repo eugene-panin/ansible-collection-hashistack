@@ -1,0 +1,23 @@
+---
+- name: Move to a newer version
+  hosts: all
+  become: true
+  vars:
+    hashicorp_release_product: consul
+    hashicorp_release_version: 1.20.2
+  pre_tasks:
+    - name: Read the version installed by converge
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/consul
+          - version
+      register: _hashicorp_release_before
+      changed_when: false
+
+    - name: Assert converge installed what it was asked for
+      ansible.builtin.assert:
+        that:
+          - "'Consul v1.20.1' in _hashicorp_release_before.stdout"
+        quiet: true
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

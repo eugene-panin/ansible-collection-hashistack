@@ -1,0 +1,132 @@
+---
+- name: Ensure the PKI directory exists on the controller
+  ansible.builtin.file:
+    path: "{{ consul_pki_dir }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Check whether the CA already exists
+  ansible.builtin.stat:
+    path: "{{ _consul_ca_key }}"
+  register: _consul_ca_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Generate the CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ _consul_ca_key }}"
+    type: ECC
+    curve: secp256r1
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: _consul_pki_live | bool
+
+- name: Build the CA signing request
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ _consul_ca_key }}"
+    common_name: "Consul Agent CA {{ consul_datacenter }}"
+    basic_constraints:
+      - "CA:TRUE"
+    basic_constraints_critical: true
+    key_usage:
+      - keyCertSign
+      - cRLSign
+      - digitalSignature
+    key_usage_critical: true
+  register: _consul_ca_csr
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: _consul_pki_live | bool
+  changed_when: false
+
+- name: Generate the CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ _consul_ca_cert }}"
+    privatekey_path: "{{ _consul_ca_key }}"
+    csr_content: "{{ _consul_ca_csr.csr }}"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ consul_pki_ca_days }}d"
+    mode: '0644'
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: _consul_pki_live | bool
+
+- name: Generate the agent private key
+  community.crypto.openssl_privatekey:
+    path: "{{ _consul_local_key }}"
+    type: ECC
+    curve: secp256r1
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  when: _consul_pki_live | bool
+
+- name: Build the agent signing request
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ _consul_local_key }}"
+    common_name: "{{ _consul_cert_cn }}"
+    subject_alt_name: "{{ _consul_cert_sans }}"
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    key_usage_critical: true
+    extended_key_usage:
+      - serverAuth
+      - clientAuth
+  register: _consul_agent_csr
+  delegate_to: localhost
+  become: false
+  when: _consul_pki_live | bool
+  changed_when: false
+
+- name: Sign the agent certificate with the CA
+  community.crypto.x509_certificate:
+    path: "{{ _consul_local_cert }}"
+    csr_content: "{{ _consul_agent_csr.csr }}"
+    provider: ownca
+    ownca_path: "{{ _consul_ca_cert }}"
+    ownca_privatekey_path: "{{ _consul_ca_key }}"
+    ownca_not_after: "+{{ consul_pki_cert_days }}d"
+    mode: '0644'
+  delegate_to: localhost
+  become: false
+  when: _consul_pki_live | bool
+
+- name: Ensure the TLS directory exists on the node
+  ansible.builtin.file:
+    path: "{{ consul_tls_dir }}"
+    state: directory
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: '0750'
+
+- name: Copy the certificate material to the node
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - src: "{{ _consul_ca_cert }}"
+      dest: "{{ _consul_remote_ca }}"
+      mode: '0640'
+    - src: "{{ _consul_local_cert }}"
+      dest: "{{ _consul_remote_cert }}"
+      mode: '0640'
+    - src: "{{ _consul_local_key }}"
+      dest: "{{ _consul_remote_key }}"
+      mode: '0600'
+  loop_control:
+    label: "{{ item.dest }}"
+  when: _consul_pki_live | bool
+  notify: "restart consul"

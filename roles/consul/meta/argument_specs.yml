@@ -1,0 +1,136 @@
+---
+argument_specs:
+  main:
+    short_description: Run a Consul agent
+    description:
+      - Installs Consul, issues it a certificate from a CA held on the
+        controller, settles a gossip key for the datacenter, renders the agent
+        configuration and manages the systemd unit.
+      - With ACLs on, bootstraps the ACL system once, creates an agent policy
+        and token, and hands the token to each agent. The bootstrap and agent
+        tokens are written to the controller.
+    options:
+      consul_version:
+        type: str
+        default: 1.20.2
+        description: Exact version to install.
+      consul_datacenter:
+        type: str
+        default: dc1
+        description: Datacenter name, also part of the certificate names.
+      consul_server:
+        type: bool
+        default: false
+        description: Run as a server rather than a client.
+      consul_bootstrap_expect:
+        type: int
+        default: 1
+        description:
+          - Servers required before the cluster elects a leader.
+          - Ignored on clients. Use an odd number; 1 means a single server with
+            no fault tolerance.
+      consul_node_name:
+        type: str
+        default: "{{ inventory_hostname }}"
+        description: Node name as it appears in the catalog.
+      consul_bind_address:
+        type: str
+        required: true
+        description:
+          - Address the agent binds and advertises on.
+          - There is no sane default. Binding to a private or tunnel address is
+            what keeps the cluster off the public internet.
+      consul_advertise_address:
+        type: str
+        description: Advertised address, when it differs from the bind address.
+      consul_client_address:
+        type: str
+        description: Addresses the HTTP and DNS interfaces listen on.
+      consul_retry_join:
+        type: list
+        elements: str
+        default: []
+        description: Addresses of other agents to join. Empty on a single node.
+      consul_ui:
+        type: bool
+        description: Serve the web UI. Defaults to on for servers.
+      consul_log_level:
+        type: str
+        default: INFO
+        description: Agent log level.
+      consul_bin_dir:
+        type: str
+        default: /usr/local/bin
+        description: Where the binary is installed.
+      consul_user:
+        type: str
+        default: consul
+        description: System user the agent runs as.
+      consul_group:
+        type: str
+        default: consul
+        description: Group the agent runs as.
+      consul_data_dir:
+        type: str
+        default: /opt/consul
+        description: Agent data directory.
+      consul_config_dir:
+        type: str
+        default: /etc/consul.d
+        description: Agent configuration directory.
+      consul_gossip_encryption:
+        type: bool
+        default: true
+        description: Encrypt the gossip protocol.
+      consul_gossip_key:
+        type: str
+        default: ""
+        description:
+          - Gossip key to use. Left empty, the first host in the play generates
+            one and it is distributed to the rest.
+      consul_tls:
+        type: bool
+        default: true
+        description: Serve the API over HTTPS and require TLS for internal RPC.
+      consul_tls_dir:
+        type: str
+        description: Where certificates land on the node.
+      consul_pki_dir:
+        type: str
+        default: ""
+        description:
+          - Directory on the controller holding the CA and the issued
+            certificates. Required when TLS is on.
+          - The CA private key is generated here and never leaves the
+            controller.
+      consul_pki_ca_days:
+        type: int
+        default: 3650
+        description: CA lifetime in days.
+      consul_pki_cert_days:
+        type: int
+        default: 825
+        description: Agent certificate lifetime in days.
+      consul_acl:
+        type: bool
+        default: true
+        description: Enable the ACL system.
+      consul_acl_default_policy:
+        type: str
+        default: deny
+        choices: [deny, allow]
+        description: What happens to a request no policy matches.
+      consul_acl_token_path:
+        type: str
+        default: ""
+        description:
+          - File on the controller where the bootstrap token is written.
+            Required when ACLs are on.
+          - The agent token is written next to it. Both are secrets in plain
+            text; put them somewhere you would keep a private key.
+      consul_extra_config:
+        type: dict
+        default: {}
+        description:
+          - Merged into the generated configuration, recursively, last.
+          - The escape hatch for anything this role does not model.

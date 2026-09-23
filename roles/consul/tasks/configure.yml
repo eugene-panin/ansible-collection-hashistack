@@ -1,0 +1,21 @@
+---
+- name: Render the agent configuration
+  ansible.builtin.copy:
+    content: "{{ _consul_config | to_nice_json }}\n"
+    dest: "{{ consul_config_dir }}/consul.json"
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: '0640'
+  no_log: true
+  notify: "restart consul"
+
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: consul.service.j2
+    dest: /etc/systemd/system/consul.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - "reload systemd"
+    - "restart consul"

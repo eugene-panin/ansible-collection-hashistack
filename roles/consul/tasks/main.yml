@@ -1,0 +1,42 @@
+---
+- name: Validate role inputs
+  ansible.builtin.assert:
+    that:
+      - consul_bind_address | length > 0
+      - consul_datacenter | length > 0
+      - not (consul_server | bool) or consul_bootstrap_expect | int > 0
+      - not (consul_tls | bool) or consul_pki_dir | length > 0
+      - not (consul_acl | bool) or consul_acl_token_path | length > 0
+    fail_msg: >-
+      consul_bind_address is required; TLS needs consul_pki_dir and ACLs need
+      consul_acl_token_path, both paths on the controller
+    quiet: true
+
+- name: Install
+  ansible.builtin.include_tasks: install.yml
+  tags: [consul, install]
+
+- name: Issue certificates
+  ansible.builtin.include_tasks: tls.yml
+  when: consul_tls | bool
+  tags: [consul, tls]
+
+- name: Settle the gossip key
+  ansible.builtin.include_tasks: gossip.yml
+  tags: [consul, config]
+
+- name: Configure
+  ansible.builtin.include_tasks: configure.yml
+  tags: [consul, config]
+
+- name: Apply pending restarts before talking to the agent
+  ansible.builtin.meta: flush_handlers
+
+- name: Manage service
+  ansible.builtin.include_tasks: service.yml
+  tags: [consul, service]
+
+- name: Bootstrap ACLs
+  ansible.builtin.include_tasks: acl.yml
+  when: consul_acl | bool
+  tags: [consul, acl]

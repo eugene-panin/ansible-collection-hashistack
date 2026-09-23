@@ -1,0 +1,52 @@
+---
+- name: Check whether the gossip key already exists
+  ansible.builtin.stat:
+    path: "{{ _consul_gossip_key_path }}"
+  register: _consul_gossip_stat
+  check_mode: false
+
+- name: Generate the gossip key
+  ansible.builtin.shell:
+    cmd: >-
+      umask 077
+      && {{ consul_bin_dir }}/consul keygen > {{ _consul_gossip_key_path | quote }}.new
+      && mv {{ _consul_gossip_key_path | quote }}.new {{ _consul_gossip_key_path | quote }}
+    creates: "{{ _consul_gossip_key_path }}"
+  when:
+    - consul_gossip_encryption | bool
+    - consul_gossip_key | length == 0
+    - _consul_gossip_primary | bool
+
+- name: Read the gossip key
+  ansible.builtin.slurp:
+    src: "{{ _consul_gossip_key_path }}"
+  register: _consul_gossip_slurp
+  when:
+    - consul_gossip_encryption | bool
+    - consul_gossip_key | length == 0
+    - _consul_gossip_primary | bool
+    - _consul_gossip_stat.stat.exists or not ansible_check_mode
+  no_log: true
+
+- name: Publish the gossip key to the rest of the datacenter
+  ansible.builtin.set_fact:
+    _consul_gossip_shared: "{{ _consul_gossip_slurp.content | b64decode | trim }}"
+  when: _consul_gossip_slurp.content is defined
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ ansible_play_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: true
+
+- name: Write the gossip key on the remaining nodes
+  ansible.builtin.copy:
+    content: "{{ _consul_gossip_value }}\n"
+    dest: "{{ _consul_gossip_key_path }}"
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: '0600'
+  when:
+    - consul_gossip_encryption | bool
+    - _consul_gossip_value | length > 0
+  no_log: true

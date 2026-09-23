@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  role_name: hashicorp_release
+  namespace: eugene_panin
+  author: Evgenii Panin
+  description: Install a HashiCorp binary from releases.hashicorp.com, verified against its checksums
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+  galaxy_tags:
+    - hashicorp
+    - consul
+    - nomad
+    - vault
+dependencies: []
+allow_duplicates: true
