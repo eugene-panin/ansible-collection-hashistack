@@ -7,14 +7,14 @@
     daemon_reload: true
   when: _consul_live | bool
 
-- name: Wait for the agent to answer
+- name: Wait until the cluster has a leader
   ansible.builtin.uri:
     url: "{{ _consul_api_addr }}/v1/status/leader"
     validate_certs: false
-    status_code: [200, 403]
+    return_content: true
   register: _consul_ready
-  until: _consul_ready is succeeded
-  retries: 30
+  until: _consul_ready.content | default('') | length > 2
+  retries: 60
   delay: 2
   when: _consul_live | bool
   changed_when: false
