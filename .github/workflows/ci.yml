@@ -21,19 +21,52 @@ jobs:
       - name: Install linters
         run: python -m pip install --upgrade ansible-core ansible-lint yamllint
 
+      - name: Install the collections the roles and tests call
+        run: ansible-galaxy collection install community.crypto community.general
+
       - name: yamllint
         run: yamllint .
 
       - name: ansible-lint
         run: ansible-lint --profile production
 
+  sanity:
+    name: sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ansible_collections/eugene_panin/hashistack
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ansible-core
+        run: python -m pip install --upgrade ansible-core
+
+      - name: ansible-test sanity
+        run: ansible-test sanity --docker default --python 3.12
+        working-directory: ansible_collections/eugene_panin/hashistack
+
   molecule:
-    name: molecule (${{ matrix.role }})
+    name: molecule (${{ matrix.role }}, ${{ matrix.distro }}, ansible-core ${{ matrix.ansible_core }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         role: [hashicorp_release, consul]
+        distro: [ubuntu2404, ubuntu2204, debian12]
+        ansible_core: [latest]
+        include:
+          - role: hashicorp_release
+            distro: ubuntu2404
+            ansible_core: '2.19'
+          - role: consul
+            distro: ubuntu2404
+            ansible_core: '2.19'
+    env:
+      MOLECULE_DISTRO: ${{ matrix.distro }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +77,8 @@ jobs:
       - name: Install molecule
         run: >-
           python -m pip install --upgrade
-          ansible-core molecule 'molecule-plugins[docker]' docker
+          ${{ matrix.ansible_core == 'latest' && 'ansible-core' || format('ansible-core=={0}.*', matrix.ansible_core) }}
+          molecule 'molecule-plugins[docker]' docker
 
       - name: molecule test
         run: molecule test --all
