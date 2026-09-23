@@ -1,8 +1,8 @@
 # tls_certificate
 
 Gives a node a TLS certificate signed by a CA that stays with whoever runs
-Ansible. The `consul` and `vault` roles use it; it has nothing specific to
-either.
+Ansible. The `consul`, `vault` and `nomad` roles use it; it has nothing
+specific to any of them.
 
 ```yaml
 - ansible.builtin.include_role:
