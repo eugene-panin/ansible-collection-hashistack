@@ -148,16 +148,16 @@
 
 - name: Install the CA and the signed certificate on the node
   ansible.builtin.copy:
-    content: "{{ item.content }}"
+    content: "{{ item.content }}\n"
     dest: "{{ item.dest }}"
     owner: "{{ consul_user }}"
     group: "{{ consul_group }}"
     mode: '0640'
   loop:
     - dest: "{{ _consul_remote_ca }}"
-      content: "{{ _consul_ca_cert_pem }}"
+      content: "{{ _consul_ca_cert_pem | trim }}"
     - dest: "{{ _consul_remote_cert }}"
-      content: "{{ _consul_agent_cert.certificate | default('') }}"
+      content: "{{ _consul_agent_cert.certificate | default('') | trim }}"
   loop_control:
     label: "{{ item.dest }}"
   when: item.content | length > 0
