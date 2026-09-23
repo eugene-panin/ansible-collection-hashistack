@@ -26,3 +26,4 @@ build_ignore:
   - .gitignore
   - .ansible-lint
   - .yamllint
+  - Makefile

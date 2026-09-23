@@ -59,15 +59,25 @@ it on WireGuard, a VLAN or a private network; the roles do not know or care.
 
 ## Development
 
+Everything runs locally in Docker, the same way CI runs it:
+
 ```bash
-yamllint .
-ansible-lint --profile production
-cd roles/<role> && molecule test
+make deps                                  # community.crypto, community.general
+make lint                                  # yamllint and ansible-lint, production profile
+make sanity                                # ansible-test sanity
+make test ROLE=consul                      # every scenario of one role, Ubuntu 24.04
+make test ROLE=vault SCENARIO='-s guard'   # one scenario
+make matrix ROLE=nomad                     # one role on Ubuntu 24.04, 22.04 and Debian 12
+make test-all                              # every role
 ```
 
+CI runs the full matrix, every role on three distributions and on the oldest
+supported ansible-core, plus sanity. A release goes out only from a green run.
+
 Every scenario runs `--check` against a fresh host before converging, and
-again against the converged one. A role that cannot dry-run on a host where it
-has never run is not finished.
+again against the converged one. Each behaviour a README or argument spec
+claims has a test, and each test has been seen failing with the code it
+covers removed.
 
 ## License
 
