@@ -1,0 +1,41 @@
+---
+- name: Make a CA that the role is handed rather than creates
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _consul_given_ca_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/given-ca"
+  tasks:
+    - name: Ensure the directory exists
+      ansible.builtin.file:
+        path: "{{ _consul_given_ca_dir }}"
+        state: directory
+        mode: '0700'
+
+    - name: Generate the CA key
+      community.crypto.openssl_privatekey:
+        path: "{{ _consul_given_ca_dir }}/ca-key.pem"
+        type: ECC
+        curve: secp256r1
+        mode: '0600'
+
+    - name: Build the CA request
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: "{{ _consul_given_ca_dir }}/ca-key.pem"
+        common_name: Given CA
+        basic_constraints:
+          - "CA:TRUE"
+        basic_constraints_critical: true
+        key_usage:
+          - keyCertSign
+          - cRLSign
+        key_usage_critical: true
+      register: _consul_given_ca_csr
+      changed_when: false
+
+    - name: Self-sign the CA
+      community.crypto.x509_certificate:
+        path: "{{ _consul_given_ca_dir }}/ca.pem"
+        privatekey_path: "{{ _consul_given_ca_dir }}/ca-key.pem"
+        csr_content: "{{ _consul_given_ca_csr.csr }}"
+        provider: selfsigned
+        mode: '0644'

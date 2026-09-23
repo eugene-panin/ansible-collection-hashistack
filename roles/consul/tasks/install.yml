@@ -33,9 +33,11 @@
   changed_when: false
   check_mode: false
 
-- name: Ensure unzip is installed
+- name: Ensure unzip and the Python crypto library are installed
   ansible.builtin.package:
-    name: unzip
+    name:
+      - unzip
+      - python3-cryptography
     state: present
   register: _consul_unzip
   until: _consul_unzip is succeeded

@@ -14,6 +14,20 @@
       become: false
       no_log: true
 
+    - name: List what the role keeps in the PKI directory on the controller
+      ansible.builtin.find:
+        paths: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
+      register: _consul_verify_pki_files
+      delegate_to: localhost
+      become: false
+
+    - name: Assert the controller holds the CA and no agent key
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_pki_files.files | map(attribute='path') | map('basename') | sort
+            == ['consul-agent-ca-key.pem', 'consul-agent-ca.pem']
+        quiet: true
+
     - name: List what the agent will load as configuration
       ansible.builtin.find:
         paths: /etc/consul.d

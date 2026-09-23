@@ -1,10 +1,21 @@
 ---
 _consul_role: "{{ 'server' if consul_server | bool else 'client' }}"
 _consul_cert_cn: "{{ _consul_role }}.{{ consul_datacenter }}.consul"
-_consul_cert_stem: "{{ consul_datacenter }}-{{ _consul_role }}-{{ consul_node_name }}"
 
-_consul_pki_live: "{{ _consul_ca_stat.stat.exists | default(false) or not ansible_check_mode }}"
 _consul_live: "{{ not (ansible_check_mode and not _consul_binary_stat.stat.exists | default(false)) }}"
+_consul_crypto_live: "{{ _consul_live }}"
+
+_consul_ca_given: "{{ consul_pki_ca_cert | length > 0 and consul_pki_ca_key | length > 0 }}"
+_consul_pki_live: >-
+  {{ _consul_ca_given | bool
+     or _consul_ca_stat.stat.exists | default(false)
+     or not ansible_check_mode }}
+_consul_ca_cert_pem: >-
+  {{ consul_pki_ca_cert if _consul_ca_given | bool
+     else (_consul_ca_files.results | default([{}]))[0].content | default('') | b64decode }}
+_consul_ca_key_pem: >-
+  {{ consul_pki_ca_key if _consul_ca_given | bool
+     else (_consul_ca_files.results | default([{}, {}]))[1].content | default('') | b64decode }}
 
 _consul_api_scheme: "{{ 'https' if consul_tls | bool else 'http' }}"
 _consul_api_port: "{{ 8501 if consul_tls | bool else 8500 }}"
@@ -18,8 +29,13 @@ _consul_bootstrap_token_path: "{{ consul_acl_token_path }}"
 _consul_agent_token_path: "{{ _consul_token_dir }}/{{ consul_datacenter }}-{{ consul_node_name }}-agent.token"
 _consul_agent_accessor: "{{ (consul_datacenter ~ '/' ~ consul_node_name) | to_uuid }}"
 
-_consul_management_token: "{{ _consul_bootstrap_slurp.content | default('') | b64decode | trim }}"
-_consul_agent_token: "{{ _consul_agent_token_slurp.content | default('') | b64decode | trim }}"
+_consul_management_token: >-
+  {{ consul_acl_bootstrap_token if consul_acl_bootstrap_token | length > 0
+     else _consul_bootstrap_slurp.content | default('') | b64decode | trim }}
+_consul_agent_token: >-
+  {{ consul_acl_agent_token if consul_acl_agent_token | length > 0
+     else _consul_agent_token_slurp.content | default('') | b64decode | trim }}
+_consul_tokens_given: "{{ consul_acl_bootstrap_token | length > 0 and consul_acl_agent_token | length > 0 }}"
 
 _consul_gossip_generated: "{{ consul_gossip_keys | length == 0 }}"
 _consul_gossip_keys_effective: >-
@@ -33,8 +49,6 @@ _consul_cert_sans: >-
 
 _consul_ca_cert: "{{ consul_pki_dir }}/consul-agent-ca.pem"
 _consul_ca_key: "{{ consul_pki_dir }}/consul-agent-ca-key.pem"
-_consul_local_cert: "{{ consul_pki_dir }}/{{ _consul_cert_stem }}.pem"
-_consul_local_key: "{{ consul_pki_dir }}/{{ _consul_cert_stem }}-key.pem"
 
 _consul_remote_ca: "{{ consul_tls_dir }}/ca.pem"
 _consul_remote_cert: "{{ consul_tls_dir }}/agent.pem"

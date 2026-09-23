@@ -3,9 +3,13 @@ argument_specs:
   main:
     short_description: Run a Consul agent
     description:
-      - Installs Consul, issues it a certificate from a CA held on the
-        controller, settles a gossip key for the datacenter, renders the agent
-        configuration and manages the systemd unit.
+      - Installs Consul, generates the agent's private key on the node, has
+        the controller sign it with the CA, settles the gossip keyring,
+        renders the agent configuration and manages the systemd unit. The
+        agent's private key never leaves the node.
+      - Every secret can be given as a value, from whatever store the
+        inventory reads. Anything not given is minted once and kept in files
+        on the controller.
       - With ACLs on, the bootstrap token and one agent token per node are
         minted on the controller as UUIDs before Consul sees them. The ACL
         system is bootstrapped with that secret, and each agent token is
@@ -107,10 +111,22 @@ argument_specs:
         type: str
         default: ""
         description:
-          - Directory on the controller holding the CA and the issued
-            certificates. Required when TLS is on.
-          - The CA private key is generated here and never leaves the
-            controller.
+          - Directory on the controller where the CA is generated and kept, when
+            it is not given through O(consul_pki_ca_cert) and
+            O(consul_pki_ca_key).
+          - Holds the CA only. Agent keys are generated on the nodes.
+      consul_pki_ca_cert:
+        type: str
+        default: ""
+        description:
+          - The CA certificate, PEM. Give it together with O(consul_pki_ca_key)
+            to keep the CA out of files on the controller.
+      consul_pki_ca_key:
+        type: str
+        default: ""
+        description:
+          - The CA private key, PEM. Used on the controller to sign agent
+            certificates; never copied to a node.
       consul_pki_ca_days:
         type: int
         default: 3650
@@ -128,12 +144,24 @@ argument_specs:
         default: deny
         choices: [deny, allow]
         description: What happens to a request no policy matches.
+      consul_acl_bootstrap_token:
+        type: str
+        default: ""
+        description:
+          - The bootstrap token, a UUID. The ACL system is bootstrapped with
+            it. Left empty, one is minted into O(consul_acl_token_path).
+      consul_acl_agent_token:
+        type: str
+        default: ""
+        description:
+          - This node's agent token, a UUID. Set per host. Left empty, one is
+            minted next to O(consul_acl_token_path).
       consul_acl_token_path:
         type: str
         default: ""
         description:
-          - File on the controller holding the bootstrap token. Minted if
-            missing. Required when ACLs are on.
+          - File on the controller holding the bootstrap token when it is not
+            given as a value. Needed unless both tokens are given.
           - One agent token per node is kept next to it, named
             C(<datacenter>-<node>-agent.token).
           - All of them are secrets in plain text; keep them where you would

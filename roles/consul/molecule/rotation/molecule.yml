@@ -19,7 +19,17 @@ provisioner:
   config_options:
     defaults:
       callback_result_format: yaml
+  inventory:
+    group_vars:
+      all:
+        consul_server: true
+        consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+        consul_pki_ca_cert: "{{ lookup('ansible.builtin.file', lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') ~ '/given-ca/ca.pem') }}"
+        consul_pki_ca_key: "{{ lookup('ansible.builtin.file', lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') ~ '/given-ca/ca-key.pem') }}"
+        consul_acl_bootstrap_token: 8b4c1a2e-3f5d-4e6a-9b7c-0d1e2f3a4b5c
+        consul_acl_agent_token: 2c9d8e7f-6a5b-4c3d-8e1f-a0b9c8d7e6f5
   playbooks:
+    prepare: prepare.yml
     converge: converge.yml
     side_effect: side_effect.yml
     verify: verify.yml
@@ -30,6 +40,7 @@ scenario:
     - dependency
     - syntax
     - create
+    - prepare
     - converge
     - idempotence
     - side_effect

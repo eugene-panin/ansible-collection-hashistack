@@ -5,12 +5,15 @@
       - consul_bind_address | length > 0
       - consul_datacenter | length > 0
       - not (consul_server | bool) or consul_bootstrap_expect | int > 0
-      - not (consul_tls | bool) or consul_pki_dir | length > 0
-      - not (consul_acl | bool) or consul_acl_token_path | length > 0
+      - not (consul_tls | bool) or consul_pki_dir | length > 0 or _consul_ca_given | bool
+      - not (consul_acl | bool) or consul_acl_token_path | length > 0 or _consul_tokens_given | bool
+      - (consul_pki_ca_cert | length > 0) == (consul_pki_ca_key | length > 0)
       - consul_gossip_keys | type_debug == "list"
     fail_msg: >-
-      consul_bind_address is required; TLS needs consul_pki_dir and ACLs need
-      consul_acl_token_path, both paths on the controller
+      consul_bind_address is required. TLS needs either consul_pki_dir or both
+      consul_pki_ca_cert and consul_pki_ca_key. ACLs need either
+      consul_acl_token_path or both consul_acl_bootstrap_token and
+      consul_acl_agent_token.
     quiet: true
 
 - name: Install

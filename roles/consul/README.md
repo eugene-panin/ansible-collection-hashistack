@@ -19,13 +19,37 @@ inventory rather than rewriting the role.
         consul_acl_token_path: "{{ playbook_dir }}/../secrets/consul/bootstrap.token"
 ```
 
+## Secrets: given or minted
+
+Every secret the role needs can be handed to it as a value, read from wherever
+your inventory keeps secrets: `ansible-vault`, SOPS, HashiCorp Vault through
+`community.hashi_vault`, a password manager lookup. The role has no opinion on
+the store.
+
+| Secret | Given as | Minted into, when not given |
+|---|---|---|
+| CA certificate and key | `consul_pki_ca_cert`, `consul_pki_ca_key` | `consul_pki_dir` |
+| Bootstrap token | `consul_acl_bootstrap_token` | `consul_acl_token_path` |
+| Agent token, per host | `consul_acl_agent_token` | next to `consul_acl_token_path` |
+| Gossip keys | `consul_gossip_keys` | the nodes, see below |
+
+Minting is there so a first deployment works with nothing prepared. Move the
+secrets into a store before the cluster matters; nothing in the role changes
+when you do.
+
+One constraint on where the store lives: whatever Consul needs to start cannot
+come from a Vault that runs on top of that Consul. Keep these outside the
+stack they bootstrap.
+
 ## What ends up where
 
-On the controller, under `consul_pki_dir`:
+On the controller, under `consul_pki_dir`, when the CA is not given:
 
-- the CA certificate and its private key. The CA key never leaves the
-  controller; nodes only ever receive certificates it signed.
-- one key and certificate per agent.
+- the CA certificate and its private key.
+
+Agent keys are generated on the nodes and never leave them. The node sends a
+signing request, the controller signs it with the CA and sends the certificate
+back.
 
 On the controller, next to `consul_acl_token_path`:
 
@@ -41,7 +65,8 @@ git.
 
 On each node:
 
-- the CA, the agent certificate and key in `/etc/consul.d/tls/`.
+- the CA certificate, the agent certificate and the agent key in
+  `/etc/consul.d/tls/`.
 - the gossip key in `/etc/consul.d/gossip.key`, only when the role generated
   it (see below).
 - `consul.json`, rendered from variables. Anything not modelled by a variable
@@ -111,8 +136,11 @@ touch:
 | `consul_retry_join` | `[]` | Other agents to join |
 | `consul_datacenter` | `dc1` | Datacenter name |
 | `consul_version` | `1.20.2` | Exact version |
-| `consul_pki_dir` | required with TLS | CA and certificates, on the controller |
-| `consul_acl_token_path` | required with ACLs | Bootstrap token file, on the controller |
+| `consul_pki_ca_cert`, `consul_pki_ca_key` | `""` | The CA, as values |
+| `consul_pki_dir` | `""` | Where the CA is minted when not given |
+| `consul_acl_bootstrap_token` | `""` | Bootstrap token, as a value |
+| `consul_acl_agent_token` | `""` | This host's agent token, as a value |
+| `consul_acl_token_path` | `""` | Where tokens are minted when not given |
 | `consul_gossip_keys` | `[]` | Keyring to converge to, primary first; empty generates one |
 | `consul_extra_config` | `{}` | Merged into the rendered config |
 
@@ -124,5 +152,6 @@ touch:
 - With `consul_acl_default_policy: deny`, an anonymous catalog read returns an
   empty list, not an error. That is Consul filtering by ACL, not the node being
   missing.
-- Certificates are issued for 825 days and are not rotated by the role.
-  Delete the agent certificate on the controller and re-run to reissue.
+- Agent certificates are issued for 825 days. The role reissues one when it
+  no longer matches the node's key, the CA or the requested names; otherwise
+  it keeps the one the node has. Delete it on the node to force a new one.

@@ -25,11 +25,15 @@ consul_gossip_keys: []
 consul_tls: true
 consul_tls_dir: "{{ consul_config_dir }}/tls"
 consul_pki_dir: ""
+consul_pki_ca_cert: ""
+consul_pki_ca_key: ""
 consul_pki_ca_days: 3650
 consul_pki_cert_days: 825
 
 consul_acl: true
 consul_acl_default_policy: deny
 consul_acl_token_path: ""
+consul_acl_bootstrap_token: ""
+consul_acl_agent_token: ""
 
 consul_extra_config: {}

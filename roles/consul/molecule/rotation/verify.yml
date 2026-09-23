@@ -3,15 +3,30 @@
   hosts: all
   become: true
   gather_facts: false
-  vars:
-    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
   tasks:
+    - name: Look for anything the role wrote to the controller
+      ansible.builtin.find:
+        paths: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
+        patterns:
+          - "*.token"
+          - "*.pem"
+        recurse: true
+      register: _consul_rotation_controller_files
+      delegate_to: localhost
+      become: false
+
+    - name: Assert secrets given as values never touched the controller's disk
+      ansible.builtin.assert:
+        that:
+          - _consul_rotation_controller_files.files | map(attribute='path') | map('basename') | sort == ['ca-key.pem', 'ca.pem']
+        quiet: true
+
     - name: Read the keyring after the rotation
       ansible.builtin.uri:
         url: https://127.0.0.1:8501/v1/operator/keyring
         validate_certs: false
         headers:
-          X-Consul-Token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+          X-Consul-Token: "{{ consul_acl_bootstrap_token }}"
         return_content: true
       register: _consul_rotation_done
 
@@ -44,7 +59,7 @@
         url: https://127.0.0.1:8501/v1/operator/keyring
         validate_certs: false
         headers:
-          X-Consul-Token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+          X-Consul-Token: "{{ consul_acl_bootstrap_token }}"
         return_content: true
       register: _consul_rotation_restarted
 

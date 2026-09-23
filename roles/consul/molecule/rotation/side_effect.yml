@@ -3,10 +3,6 @@
   hosts: all
   become: true
   vars:
-    consul_server: true
-    consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
-    consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
-    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
     consul_gossip_keys:
       - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
       - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
@@ -18,7 +14,7 @@
         url: https://127.0.0.1:8501/v1/operator/keyring
         validate_certs: false
         headers:
-          X-Consul-Token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+          X-Consul-Token: "{{ consul_acl_bootstrap_token }}"
         return_content: true
       register: _consul_rotation_half
 
@@ -35,10 +31,6 @@
   hosts: all
   become: true
   vars:
-    consul_server: true
-    consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
-    consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
-    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
     consul_gossip_keys:
       - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
   roles:
