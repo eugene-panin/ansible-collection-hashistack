@@ -28,6 +28,14 @@
           - _consul_verify_config_files.files | map(attribute='path') | list == ['/etc/consul.d/consul.json']
         quiet: true
 
+    - name: Mark the time of the restart
+      ansible.builtin.command:
+        argv:
+          - date
+          - +%s
+      register: _consul_verify_restart_at
+      changed_when: false
+
     - name: Restart the agent, as a reboot would
       ansible.builtin.systemd_service:
         name: consul
@@ -110,4 +118,47 @@
       ansible.builtin.assert:
         that:
           - _consul_verify_keyring.rc == 0
+        quiet: true
+
+    - name: Read this node's agent token from the controller
+      ansible.builtin.slurp:
+        src: "{{ consul_acl_token_path | dirname }}/dc1-instance-consul-agent.token"
+      register: _consul_verify_agent_token
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Look the agent token up as itself
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/acl/token/self
+        validate_certs: false
+        headers:
+          X-Consul-Token: "{{ _consul_verify_agent_token.content | b64decode | trim }}"
+        return_content: true
+      register: _consul_verify_agent_self
+      no_log: true
+
+    - name: Assert the agent token carries this node's identity and nothing more
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_agent_self.json.NodeIdentities | map(attribute='NodeName') | list == ['instance-consul']
+          - _consul_verify_agent_self.json.Policies | default([]) | length == 0
+        quiet: true
+
+    - name: Read the agent log since the restart
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - consul
+          - --no-pager
+          - --since
+          - "@{{ _consul_verify_restart_at.stdout }}"
+      register: _consul_verify_log
+      changed_when: false
+
+    - name: Assert the agent is not being refused by ACLs
+      ansible.builtin.assert:
+        that:
+          - "'blocked by ACLs' not in _consul_verify_log.stdout"
         quiet: true

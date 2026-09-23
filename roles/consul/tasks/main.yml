@@ -7,6 +7,7 @@
       - not (consul_server | bool) or consul_bootstrap_expect | int > 0
       - not (consul_tls | bool) or consul_pki_dir | length > 0
       - not (consul_acl | bool) or consul_acl_token_path | length > 0
+      - consul_gossip_keys | type_debug == "list"
     fail_msg: >-
       consul_bind_address is required; TLS needs consul_pki_dir and ACLs need
       consul_acl_token_path, both paths on the controller
@@ -23,7 +24,13 @@
 
 - name: Settle the gossip key
   ansible.builtin.include_tasks: gossip.yml
-  tags: [consul, config]
+  when: consul_gossip_encryption | bool
+  tags: [consul, gossip]
+
+- name: Mint tokens on the controller
+  ansible.builtin.include_tasks: secrets.yml
+  when: consul_acl | bool
+  tags: [consul, acl]
 
 - name: Configure
   ansible.builtin.include_tasks: configure.yml
@@ -36,7 +43,12 @@
   ansible.builtin.include_tasks: service.yml
   tags: [consul, service]
 
-- name: Bootstrap ACLs
+- name: Converge ACLs
   ansible.builtin.include_tasks: acl.yml
   when: consul_acl | bool
   tags: [consul, acl]
+
+- name: Converge the gossip keyring
+  ansible.builtin.include_tasks: keyring.yml
+  when: consul_gossip_encryption | bool
+  tags: [consul, gossip]

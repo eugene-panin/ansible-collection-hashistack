@@ -9,34 +9,23 @@ _consul_live: "{{ not (ansible_check_mode and not _consul_binary_stat.stat.exist
 _consul_api_scheme: "{{ 'https' if consul_tls | bool else 'http' }}"
 _consul_api_port: "{{ 8501 if consul_tls | bool else 8500 }}"
 _consul_api_addr: "{{ _consul_api_scheme }}://127.0.0.1:{{ _consul_api_port }}"
+_consul_api_ca: "{{ _consul_remote_ca if consul_tls | bool else omit }}"
 
-_consul_acl_policy_name: "agent-{{ consul_datacenter }}"
-_consul_agent_policy_rules: |
-  node_prefix "" {
-    policy = "write"
-  }
-  service_prefix "" {
-    policy = "read"
-  }
-  session_prefix "" {
-    policy = "read"
-  }
-  agent_prefix "" {
-    policy = "read"
-  }
+_consul_primary: "{{ inventory_hostname == ansible_play_hosts | first }}"
+
+_consul_token_dir: "{{ consul_acl_token_path | dirname }}"
 _consul_bootstrap_token_path: "{{ consul_acl_token_path }}"
-_consul_agent_token_path: "{{ consul_acl_token_path | dirname }}/{{ consul_datacenter }}-agent.token"
+_consul_agent_token_path: "{{ _consul_token_dir }}/{{ consul_datacenter }}-{{ consul_node_name }}-agent.token"
+_consul_agent_accessor: "{{ (consul_datacenter ~ '/' ~ consul_node_name) | to_uuid }}"
 
 _consul_management_token: "{{ _consul_bootstrap_slurp.content | default('') | b64decode | trim }}"
 _consul_agent_token: "{{ _consul_agent_token_slurp.content | default('') | b64decode | trim }}"
 
-_consul_acl_env:
-  CONSUL_HTTP_ADDR: "{{ _consul_api_addr }}"
-  CONSUL_HTTP_SSL_VERIFY: "false"
-  CONSUL_HTTP_TOKEN: "{{ _consul_management_token }}"
-
-_consul_gossip_primary: "{{ inventory_hostname == ansible_play_hosts | first }}"
-_consul_gossip_value: "{{ consul_gossip_key if consul_gossip_key | length > 0 else _consul_gossip_shared | default('') }}"
+_consul_gossip_generated: "{{ consul_gossip_keys | length == 0 }}"
+_consul_gossip_keys_effective: >-
+  {{ consul_gossip_keys if consul_gossip_keys | length > 0
+     else ([_consul_gossip_shared] if _consul_gossip_shared | default('') | length > 0 else []) }}
+_consul_gossip_value: "{{ _consul_gossip_keys_effective | first | default('') }}"
 
 _consul_cert_sans: >-
   {{ ['DNS:' ~ _consul_cert_cn, 'DNS:localhost', 'IP:127.0.0.1']
@@ -74,7 +63,12 @@ _consul_acl_config:
     enabled: true
     default_policy: "{{ consul_acl_default_policy }}"
     down_policy: extend-cache
-    enable_token_persistence: true
+    enable_token_persistence: false
+
+_consul_acl_agent_token_config:
+  acl:
+    tokens:
+      agent: "{{ _consul_agent_token }}"
 
 _consul_tls_config:
   tls:
@@ -95,6 +89,8 @@ _consul_config: >-
   {{ _consul_base_config
      | combine(_consul_server_config if consul_server | bool else {})
      | combine(_consul_acl_config if consul_acl | bool else {})
+     | combine(_consul_acl_agent_token_config
+               if consul_acl | bool and _consul_agent_token | length > 0 else {}, recursive=True)
      | combine(_consul_tls_config if consul_tls | bool else {})
      | combine({'encrypt': _consul_gossip_value} if _consul_gossip_value | length > 0 else {})
      | combine(consul_extra_config, recursive=True) }}

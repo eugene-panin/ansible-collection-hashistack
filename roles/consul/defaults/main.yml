@@ -20,7 +20,7 @@ consul_data_dir: /opt/consul
 consul_config_dir: /etc/consul.d
 
 consul_gossip_encryption: true
-consul_gossip_key: ""
+consul_gossip_keys: []
 
 consul_tls: true
 consul_tls_dir: "{{ consul_config_dir }}/tls"

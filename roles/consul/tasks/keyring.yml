@@ -1,0 +1,12 @@
+---
+- name: Converge the gossip keyring to the declared keys
+  eugene_panin.hashistack.consul_keyring:
+    keys: "{{ _consul_gossip_keys_effective }}"
+    token: "{{ _consul_management_token }}"
+    url: "{{ _consul_api_addr }}"
+    ca_path: "{{ _consul_api_ca }}"
+  when:
+    - _consul_live | bool
+    - _consul_primary | bool
+    - _consul_gossip_keys_effective | length > 0
+    - not (consul_acl | bool) or _consul_management_token | length > 0

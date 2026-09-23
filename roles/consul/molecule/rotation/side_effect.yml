@@ -1,0 +1,45 @@
+---
+- name: Rotate, first half
+  hosts: all
+  become: true
+  vars:
+    consul_server: true
+    consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+    consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
+    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
+    consul_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+      - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Read the keyring after the first half
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/operator/keyring
+        validate_certs: false
+        headers:
+          X-Consul-Token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+        return_content: true
+      register: _consul_rotation_half
+
+    - name: Assert both keys are installed and the new one is primary
+      ansible.builtin.assert:
+        that:
+          - _consul_rotation_half.json | map(attribute='Keys') | map('list') | map('sort') | unique | list
+            == [['+YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=', 'QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']]
+          - _consul_rotation_half.json | map(attribute='PrimaryKeys') | map('list') | unique | list
+            == [['QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']]
+        quiet: true
+
+- name: Rotate, second half
+  hosts: all
+  become: true
+  vars:
+    consul_server: true
+    consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+    consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
+    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
+    consul_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

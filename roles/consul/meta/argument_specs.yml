@@ -6,9 +6,11 @@ argument_specs:
       - Installs Consul, issues it a certificate from a CA held on the
         controller, settles a gossip key for the datacenter, renders the agent
         configuration and manages the systemd unit.
-      - With ACLs on, bootstraps the ACL system once, creates an agent policy
-        and token, and hands the token to each agent. The bootstrap and agent
-        tokens are written to the controller.
+      - With ACLs on, the bootstrap token and one agent token per node are
+        minted on the controller as UUIDs before Consul sees them. The ACL
+        system is bootstrapped with that secret, and each agent token is
+        created with that node's built-in node identity and written into the
+        agent's configuration.
     options:
       consul_version:
         type: str
@@ -82,12 +84,18 @@ argument_specs:
         type: bool
         default: true
         description: Encrypt the gossip protocol.
-      consul_gossip_key:
-        type: str
-        default: ""
+      consul_gossip_keys:
+        type: list
+        elements: str
+        default: []
         description:
-          - Gossip key to use. Left empty, the first host in the play generates
-            one and it is distributed to the rest.
+          - Gossip keys the keyring is converged to. The first is the primary;
+            any key the cluster holds that is not listed is removed.
+          - Rotate by declaring C([new, old]) for one run and C([new]) for the
+            next.
+          - Left empty, the first host in the play generates a key once and
+            shares it. Fine for a first deployment; declare the keys, from a
+            vault, before you ever need to rotate.
       consul_tls:
         type: bool
         default: true
@@ -124,10 +132,12 @@ argument_specs:
         type: str
         default: ""
         description:
-          - File on the controller where the bootstrap token is written.
-            Required when ACLs are on.
-          - The agent token is written next to it. Both are secrets in plain
-            text; put them somewhere you would keep a private key.
+          - File on the controller holding the bootstrap token. Minted if
+            missing. Required when ACLs are on.
+          - One agent token per node is kept next to it, named
+            C(<datacenter>-<node>-agent.token).
+          - All of them are secrets in plain text; keep them where you would
+            keep a private key.
       consul_extra_config:
         type: dict
         default: {}

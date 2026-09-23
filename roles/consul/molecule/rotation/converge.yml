@@ -1,0 +1,13 @@
+---
+- name: Converge with one declared key
+  hosts: all
+  become: true
+  vars:
+    consul_server: true
+    consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+    consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
+    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
+    consul_gossip_keys:
+      - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

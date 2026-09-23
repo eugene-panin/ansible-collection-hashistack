@@ -1,0 +1,56 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
+  tasks:
+    - name: Read the keyring after the rotation
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/operator/keyring
+        validate_certs: false
+        headers:
+          X-Consul-Token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+        return_content: true
+      register: _consul_rotation_done
+
+    - name: Assert only the new key is left, and it is primary
+      ansible.builtin.assert:
+        that:
+          - _consul_rotation_done.json | map(attribute='Keys') | map('list') | unique | list
+            == [['QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']]
+          - _consul_rotation_done.json | map(attribute='PrimaryKeys') | map('list') | unique | list
+            == [['QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']]
+        quiet: true
+
+    - name: Restart the agent
+      ansible.builtin.systemd_service:
+        name: consul
+        state: restarted
+
+    - name: Wait for a leader after the restart
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/status/leader
+        validate_certs: false
+        return_content: true
+      register: _consul_rotation_leader
+      until: _consul_rotation_leader.content | default('') | length > 2
+      retries: 30
+      delay: 2
+
+    - name: Read the keyring after the restart
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/operator/keyring
+        validate_certs: false
+        headers:
+          X-Consul-Token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+        return_content: true
+      register: _consul_rotation_restarted
+
+    - name: Assert the rotation survived the restart
+      ansible.builtin.assert:
+        that:
+          - _consul_rotation_restarted.json | map(attribute='Keys') | map('list') | unique | list
+            == [['QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']]
+        quiet: true
