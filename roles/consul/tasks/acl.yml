@@ -1,4 +1,13 @@
 ---
+- name: Ensure the token directory exists on the controller
+  ansible.builtin.file:
+    path: "{{ consul_acl_token_path | dirname }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+  run_once: true
+
 - name: Check whether the bootstrap token was already saved
   ansible.builtin.stat:
     path: "{{ _consul_bootstrap_token_path }}"

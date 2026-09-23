@@ -7,13 +7,5 @@
     consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
     consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
     consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
-  pre_tasks:
-    - name: Ensure the token directory exists on the controller
-      ansible.builtin.file:
-        path: "{{ consul_acl_token_path | dirname }}"
-        state: directory
-        mode: '0700'
-      delegate_to: localhost
-      become: false
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
