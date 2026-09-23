@@ -1,0 +1,21 @@
+---
+galaxy_info:
+  role_name: vault
+  namespace: eugene_panin
+  author: Evgenii Panin
+  description: Vault on integrated raft storage, TLS only, initialised once and unsealed on every run
+  license: MIT
+  min_ansible_version: "2.19"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+  galaxy_tags:
+    - vault
+    - hashicorp
+    - secrets
+dependencies: []

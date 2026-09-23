@@ -1,0 +1,31 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Read the initialisation state
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/init"
+        validate_certs: false
+        return_content: true
+      register: _vault_guard_state
+
+    - name: Assert Vault was left uninitialised
+      ansible.builtin.assert:
+        that:
+          - not _vault_guard_state.json.initialized
+        quiet: true
+
+    - name: Read the earlier init output
+      ansible.builtin.slurp:
+        src: "{{ vault_init_output_path }}"
+      register: _vault_guard_file
+      delegate_to: localhost
+      become: false
+
+    - name: Assert the earlier keys are untouched
+      ansible.builtin.assert:
+        that:
+          - "'earlier-cluster-token' in _vault_guard_file.content | b64decode"
+        quiet: true

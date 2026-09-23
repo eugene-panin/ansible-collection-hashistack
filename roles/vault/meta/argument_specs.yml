@@ -1,0 +1,114 @@
+---
+argument_specs:
+  main:
+    short_description: Run Vault on integrated raft storage
+    description:
+      - Installs Vault, issues it a certificate through the tls_certificate
+        role, renders the server configuration and manages the systemd unit.
+      - Initialises Vault once and writes the unseal keys and root token to a
+        file on the controller. On every run, a sealed Vault is unsealed with
+        those keys, or with keys given as a value.
+      - Raft storage, no dependency on Consul. The API listens on the bind
+        address only, over TLS.
+    options:
+      vault_version:
+        type: str
+        default: 2.1.1
+        description: Exact version to install.
+      vault_node_id:
+        type: str
+        default: "{{ inventory_hostname }}"
+        description: Raft node id.
+      vault_bind_address:
+        type: str
+        required: true
+        description:
+          - Address the API and cluster listeners bind to and advertise.
+          - No default. Binding to a private or tunnel address is what keeps
+            Vault off the public internet.
+      vault_api_port:
+        type: int
+        default: 8200
+        description: API port.
+      vault_cluster_port:
+        type: int
+        default: 8201
+        description: Cluster port for raft and request forwarding.
+      vault_retry_join:
+        type: list
+        elements: str
+        default: []
+        description: API addresses of other nodes to join, as C(https://host:8200).
+      vault_ui:
+        type: bool
+        default: true
+        description: Serve the web UI.
+      vault_log_level:
+        type: str
+        default: info
+        description: Server log level.
+      vault_bin_dir:
+        type: str
+        default: /usr/local/bin
+        description: Where the binary is installed.
+      vault_user:
+        type: str
+        default: vault
+        description: System user Vault runs as.
+      vault_group:
+        type: str
+        default: vault
+        description: Group Vault runs as.
+      vault_config_dir:
+        type: str
+        default: /etc/vault.d
+        description: Configuration directory.
+      vault_data_dir:
+        type: str
+        default: /opt/vault/data
+        description: Raft data directory.
+      vault_tls_dir:
+        type: str
+        description: Where the certificate, key and CA land on the node.
+      vault_pki_ca_cert:
+        type: str
+        default: ""
+        description: CA certificate, PEM. Give with O(vault_pki_ca_key).
+      vault_pki_ca_key:
+        type: str
+        default: ""
+        description: CA private key, PEM. Used on the controller only.
+      vault_pki_dir:
+        type: str
+        default: ""
+        description: Controller directory to generate the CA in when it is not given.
+      vault_pki_cert_days:
+        type: int
+        default: 825
+        description: Lifetime of the server certificate, in days.
+      vault_init_key_shares:
+        type: int
+        default: 5
+        description: Number of unseal key shares made at initialisation.
+      vault_init_key_threshold:
+        type: int
+        default: 3
+        description: Shares needed to unseal.
+      vault_init_output_path:
+        type: str
+        default: ""
+        description:
+          - File on the controller that receives the unseal keys and root token
+            when Vault is initialised, and from which they are read to unseal
+            when O(vault_unseal_keys) is empty.
+          - The role refuses to initialise when this file already exists, since
+            it would hold the keys of another cluster.
+      vault_unseal_keys:
+        type: list
+        elements: str
+        default: []
+        description: Unseal keys as values, from any secret store.
+      vault_extra_config:
+        type: dict
+        default: {}
+        description: Merged into the rendered configuration, recursively, last.

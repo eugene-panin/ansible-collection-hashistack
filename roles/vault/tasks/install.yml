@@ -1,0 +1,72 @@
+---
+- name: Check whether vault is already installed
+  ansible.builtin.stat:
+    path: "{{ vault_bin_dir }}/vault"
+  register: _vault_binary_stat
+  check_mode: false
+
+- name: Ensure the vault group exists
+  ansible.builtin.group:
+    name: "{{ vault_group }}"
+    system: true
+    state: present
+
+- name: Ensure the vault user exists
+  ansible.builtin.user:
+    name: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ vault_data_dir }}"
+    create_home: false
+    state: present
+
+- name: Refresh the apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts['os_family'] == 'Debian'
+  register: _vault_apt_cache
+  until: _vault_apt_cache is succeeded
+  retries: 30
+  delay: 10
+  changed_when: false
+  check_mode: false
+
+- name: Ensure unzip is installed
+  ansible.builtin.package:
+    name: unzip
+    state: present
+  register: _vault_unzip
+  until: _vault_unzip is succeeded
+  retries: 30
+  delay: 10
+
+- name: Install the vault binary
+  ansible.builtin.include_role:
+    name: eugene_panin.hashistack.hashicorp_release
+  vars:
+    hashicorp_release_product: vault
+    hashicorp_release_version: "{{ vault_version }}"
+    hashicorp_release_bin_dir: "{{ vault_bin_dir }}"
+
+- name: Queue a restart when a different binary was unpacked
+  ansible.builtin.debug:
+    msg: "vault {{ vault_version }} unpacked"
+  changed_when: hashicorp_release_result is changed
+  notify: "restart vault"
+
+- name: Ensure the vault directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ vault_config_dir }}"
+      mode: '0750'
+    - path: "{{ vault_data_dir }}"
+      mode: '0700'
+  loop_control:
+    label: "{{ item.path }}"

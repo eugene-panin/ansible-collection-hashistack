@@ -1,0 +1,126 @@
+---
+- name: Read the initialisation state
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/init"
+    ca_path: "{{ _vault_ca_file }}"
+    return_content: true
+  register: _vault_init_status
+  when: _vault_live | bool
+  check_mode: false
+
+- name: Check for an earlier init output on the controller
+  ansible.builtin.stat:
+    path: "{{ vault_init_output_path }}"
+  register: _vault_init_output_stat
+  when: vault_init_output_path | length > 0
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Refuse to initialise over the output of another initialisation
+  ansible.builtin.assert:
+    that:
+      - vault_init_output_path | length > 0
+      - not _vault_init_output_stat.stat.exists
+    fail_msg: >-
+      Vault is not initialised, and either vault_init_output_path is not set or
+      {{ vault_init_output_path }} already holds the keys of an earlier
+      initialisation. Those keys belong to another cluster; move the file away
+      before initialising this one, or they are lost.
+    quiet: true
+  when:
+    - _vault_live | bool
+    - _vault_primary | bool
+    - not _vault_init_status.json.initialized
+
+- name: Ensure the init output directory exists on the controller
+  ansible.builtin.file:
+    path: "{{ vault_init_output_path | dirname }}"
+    state: directory
+    mode: '0700'
+  when:
+    - _vault_live | bool
+    - _vault_primary | bool
+    - not _vault_init_status.json.initialized
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Initialise Vault
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/init"
+    method: PUT
+    ca_path: "{{ _vault_ca_file }}"
+    body_format: json
+    body:
+      secret_shares: "{{ vault_init_key_shares | int }}"
+      secret_threshold: "{{ vault_init_key_threshold | int }}"
+    return_content: true
+  register: _vault_init_result
+  when:
+    - _vault_live | bool
+    - _vault_primary | bool
+    - not _vault_init_status.json.initialized
+  changed_when: true
+  no_log: true
+
+- name: Save the unseal keys and the root token on the controller
+  ansible.builtin.copy:
+    content: "{{ _vault_init_result.json | to_nice_json }}\n"
+    dest: "{{ vault_init_output_path }}"
+    mode: '0600'
+    force: false
+  when: _vault_init_result.json is defined
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Read the init output
+  ansible.builtin.slurp:
+    src: "{{ vault_init_output_path }}"
+  register: _vault_init_file
+  when:
+    - vault_unseal_keys | length == 0
+    - _vault_init_output_stat.stat.exists | default(false) or _vault_init_result.json is defined
+  delegate_to: localhost
+  become: false
+  run_once: true
+  no_log: true
+
+- name: Read the seal state
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/seal-status"
+    ca_path: "{{ _vault_ca_file }}"
+    return_content: true
+  register: _vault_seal
+  when: _vault_live | bool
+  check_mode: false
+
+- name: Unseal with as many keys as the threshold asks for
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/unseal"
+    method: PUT
+    ca_path: "{{ _vault_ca_file }}"
+    body_format: json
+    body:
+      key: "{{ item }}"
+  loop: "{{ _vault_unseal_keys_effective[: _vault_seal.json.t | default(0) | int] }}"
+  loop_control:
+    label: "key"
+  when:
+    - _vault_live | bool
+    - _vault_seal.json.sealed | default(false)
+  changed_when: true
+  no_log: true
+
+- name: Wait until Vault is serving, active or standby
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/health?standbyok=true"
+    ca_path: "{{ _vault_ca_file }}"
+  register: _vault_serving
+  until: _vault_serving.status | default(0) == 200
+  retries: 30
+  delay: 2
+  when: _vault_live | bool
+  check_mode: false

@@ -1,0 +1,29 @@
+{{ ansible_managed | comment }}
+[Unit]
+Description=Vault
+Documentation=https://developer.hashicorp.com/vault/docs
+Requires=network-online.target
+After=network-online.target
+ConditionFileNotEmpty={{ vault_config_dir }}/vault.json
+
+[Service]
+User={{ vault_user }}
+Group={{ vault_group }}
+ExecStart={{ vault_bin_dir }}/vault server -config={{ vault_config_dir }}/vault.json
+ExecReload=/bin/kill --signal HUP $MAINPID
+KillMode=process
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths={{ vault_data_dir }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,54 @@
+---
+- name: Restart Vault, which seals it
+  hosts: all
+  become: true
+  tasks:
+    - name: Restart the service
+      ansible.builtin.systemd_service:
+        name: vault
+        state: restarted
+
+    - name: Read the seal state after the restart
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        validate_certs: false
+        return_content: true
+      register: _vault_test_sealed
+      until: _vault_test_sealed.status | default(0) == 200
+      retries: 30
+      delay: 2
+
+    - name: Assert the restart left Vault sealed
+      ansible.builtin.assert:
+        that:
+          - _vault_test_sealed.json.sealed
+        quiet: true
+
+- name: Run the role against a sealed Vault
+  hosts: all
+  become: true
+  vars:
+    vault_version: 2.1.0
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Read the seal state after the run
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        validate_certs: false
+        return_content: true
+      register: _vault_test_unsealed
+
+    - name: Assert the run unsealed it
+      ansible.builtin.assert:
+        that:
+          - not _vault_test_unsealed.json.sealed
+        quiet: true
+
+- name: Upgrade to the next release
+  hosts: all
+  become: true
+  vars:
+    vault_version: 2.1.1
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

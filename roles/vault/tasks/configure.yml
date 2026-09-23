@@ -1,0 +1,20 @@
+---
+- name: Render the server configuration
+  ansible.builtin.copy:
+    content: "{{ _vault_config | to_nice_json }}\n"
+    dest: "{{ vault_config_dir }}/vault.json"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0640'
+  notify: "restart vault"
+
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: vault.service.j2
+    dest: /etc/systemd/system/vault.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - "reload systemd"
+    - "restart vault"

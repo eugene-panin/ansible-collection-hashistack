@@ -1,0 +1,45 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/default/requirements.yml
+driver:
+  name: docker
+platforms:
+  - name: instance-vault
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      callback_result_format: yaml
+  inventory:
+    group_vars:
+      all:
+        vault_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+        vault_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
+        vault_init_output_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/vault/init.json"
+  playbooks:
+    converge: converge.yml
+    side_effect: side_effect.yml
+    verify: verify.yml
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - create
+    - check
+    - converge
+    - idempotence
+    - check
+    - side_effect
+    - verify
+    - destroy

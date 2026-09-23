@@ -1,0 +1,20 @@
+---
+- name: Ensure vault is enabled and running
+  ansible.builtin.systemd_service:
+    name: vault
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: _vault_live | bool
+
+- name: Wait for the API to answer, sealed or not
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200"
+    ca_path: "{{ _vault_ca_file }}"
+    return_content: true
+  register: _vault_health
+  until: _vault_health.status | default(0) == 200
+  retries: 60
+  delay: 2
+  when: _vault_live | bool
+  check_mode: false

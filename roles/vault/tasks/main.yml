@@ -1,0 +1,57 @@
+---
+- name: Validate role inputs
+  ansible.builtin.assert:
+    that:
+      - vault_bind_address | length > 0
+      - vault_init_key_threshold | int <= vault_init_key_shares | int
+      - vault_pki_dir | length > 0 or (vault_pki_ca_cert | length > 0 and vault_pki_ca_key | length > 0)
+      - vault_init_output_path | length > 0 or vault_unseal_keys | length > 0
+    fail_msg: >-
+      vault_bind_address is required. The CA comes from vault_pki_dir or from
+      vault_pki_ca_cert with vault_pki_ca_key. Unseal keys come from
+      vault_unseal_keys or from the file at vault_init_output_path.
+    quiet: true
+
+- name: Install
+  ansible.builtin.include_tasks: install.yml
+  tags: [vault, install]
+
+- name: Issue the certificate
+  ansible.builtin.include_role:
+    name: eugene_panin.hashistack.tls_certificate
+  vars:
+    tls_certificate_ca_cert: "{{ vault_pki_ca_cert }}"
+    tls_certificate_ca_key: "{{ vault_pki_ca_key }}"
+    tls_certificate_ca_dir: "{{ vault_pki_dir }}"
+    tls_certificate_ca_name: vault-ca
+    tls_certificate_ca_common_name: Vault CA
+    tls_certificate_dir: "{{ vault_tls_dir }}"
+    tls_certificate_name: vault
+    tls_certificate_owner: "{{ vault_user }}"
+    tls_certificate_group: "{{ vault_group }}"
+    tls_certificate_common_name: vault.service.consul
+    tls_certificate_subject_alt_names: "{{ _vault_cert_sans }}"
+    tls_certificate_days: "{{ vault_pki_cert_days }}"
+  tags: [vault, tls]
+
+- name: Queue a restart when the TLS material changed
+  ansible.builtin.debug:
+    msg: vault certificate updated
+  changed_when: tls_certificate_changed | bool
+  notify: "restart vault"
+  tags: [vault, tls]
+
+- name: Configure
+  ansible.builtin.include_tasks: configure.yml
+  tags: [vault, config]
+
+- name: Apply pending restarts before talking to Vault
+  ansible.builtin.meta: flush_handlers
+
+- name: Manage service
+  ansible.builtin.include_tasks: service.yml
+  tags: [vault, service]
+
+- name: Initialise and unseal
+  ansible.builtin.include_tasks: unseal.yml
+  tags: [vault, unseal]

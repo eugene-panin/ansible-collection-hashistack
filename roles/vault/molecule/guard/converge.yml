@@ -1,0 +1,20 @@
+---
+- name: Run the role against an uninitialised Vault with a stale init file present
+  hosts: all
+  become: true
+  tasks:
+    - name: Apply the role and expect it to stop
+      block:
+        - name: Apply the role
+          ansible.builtin.include_role:
+            name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+
+        - name: The role must not get this far
+          ansible.builtin.fail:
+            msg: the role initialised Vault over an existing init output
+      rescue:
+        - name: Assert it stopped for the right reason
+          ansible.builtin.assert:
+            that:
+              - "'belong to another cluster' in ansible_failed_result.msg | default('')"
+            quiet: true

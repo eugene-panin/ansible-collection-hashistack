@@ -1,0 +1,44 @@
+---
+_vault_live: "{{ not (ansible_check_mode and not _vault_binary_stat.stat.exists | default(false)) }}"
+
+_vault_api_addr: "https://{{ vault_bind_address }}:{{ vault_api_port }}"
+_vault_cluster_addr: "https://{{ vault_bind_address }}:{{ vault_cluster_port }}"
+_vault_primary: "{{ inventory_hostname == ansible_play_hosts | first }}"
+
+_vault_ca_file: "{{ vault_tls_dir }}/ca.pem"
+_vault_cert_file: "{{ vault_tls_dir }}/vault.pem"
+_vault_key_file: "{{ vault_tls_dir }}/vault-key.pem"
+
+_vault_cert_sans: >-
+  {{ ['DNS:vault.service.consul', 'DNS:active.vault.service.consul', 'DNS:localhost',
+      'IP:127.0.0.1', 'IP:' ~ vault_bind_address] }}
+
+_vault_init_data: >-
+  {{ _vault_init_file.content | b64decode | from_json if _vault_init_file.content is defined else {} }}
+_vault_unseal_keys_effective: >-
+  {{ vault_unseal_keys if vault_unseal_keys | length > 0 else _vault_init_data.keys_base64 | default([]) }}
+
+_vault_raft_config: >-
+  {{ {'path': vault_data_dir, 'node_id': vault_node_id}
+     | combine({'retry_join': vault_retry_join
+                  | map('community.general.dict_kv', 'leader_api_addr')
+                  | map('combine', {'leader_ca_cert_file': _vault_ca_file}) | list}
+               if vault_retry_join | length > 0 else {}) }}
+
+_vault_base_config:
+  ui: "{{ vault_ui | bool }}"
+  disable_mlock: true
+  log_level: "{{ vault_log_level }}"
+  api_addr: "{{ _vault_api_addr }}"
+  cluster_addr: "{{ _vault_cluster_addr }}"
+  storage:
+    raft: "{{ _vault_raft_config }}"
+  listener:
+    - tcp:
+        address: "{{ vault_bind_address }}:{{ vault_api_port }}"
+        cluster_address: "{{ vault_bind_address }}:{{ vault_cluster_port }}"
+        tls_cert_file: "{{ _vault_cert_file }}"
+        tls_key_file: "{{ _vault_key_file }}"
+        tls_min_version: tls12
+
+_vault_config: "{{ _vault_base_config | combine(vault_extra_config, recursive=True) }}"

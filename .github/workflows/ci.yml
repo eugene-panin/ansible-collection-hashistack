@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        role: [hashicorp_release, consul]
+        role: [hashicorp_release, consul, vault]
         distro: [ubuntu2404, ubuntu2204, debian12]
         ansible_core: [latest]
         include:
@@ -63,6 +63,9 @@ jobs:
             distro: ubuntu2404
             ansible_core: '2.19'
           - role: consul
+            distro: ubuntu2404
+            ansible_core: '2.19'
+          - role: vault
             distro: ubuntu2404
             ansible_core: '2.19'
     env:

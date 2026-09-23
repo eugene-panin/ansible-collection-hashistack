@@ -1,0 +1,18 @@
+---
+- name: Leave the init output of an earlier cluster on the controller
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _vault_guard_init_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/vault/init.json"
+  tasks:
+    - name: Ensure the directory exists
+      ansible.builtin.file:
+        path: "{{ _vault_guard_init_path | dirname }}"
+        state: directory
+        mode: '0700'
+
+    - name: Write keys that belong to some other cluster
+      ansible.builtin.copy:
+        content: '{"keys_base64": ["earlier-cluster-key"], "root_token": "earlier-cluster-token"}'
+        dest: "{{ _vault_guard_init_path }}"
+        mode: '0600'

@@ -1,0 +1,76 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Read the init output on the controller
+      ansible.builtin.stat:
+        path: "{{ vault_init_output_path }}"
+      register: _vault_test_init_stat
+      delegate_to: localhost
+      become: false
+
+    - name: Assert the unseal keys were saved, readable only by their owner
+      ansible.builtin.assert:
+        that:
+          - _vault_test_init_stat.stat.exists
+          - _vault_test_init_stat.stat.mode == '0600'
+        quiet: true
+
+    - name: Read the root token
+      ansible.builtin.set_fact:
+        _vault_test_root: "{{ (lookup('ansible.builtin.file', vault_init_output_path) | from_json).root_token }}"
+      no_log: true
+
+    - name: Ask the running server for its health, verifying its certificate
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/health"
+        ca_path: /etc/vault.d/tls/ca.pem
+        return_content: true
+      register: _vault_test_health
+
+    - name: Assert it is initialised, unsealed and running the upgraded release
+      ansible.builtin.assert:
+        that:
+          - _vault_test_health.json.initialized
+          - not _vault_test_health.json.sealed
+          - _vault_test_health.json.version is match('2\.1\.1')
+        quiet: true
+
+    - name: Read the raft configuration
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/storage/raft/configuration"
+        ca_path: /etc/vault.d/tls/ca.pem
+        headers:
+          X-Vault-Token: "{{ _vault_test_root }}"
+        return_content: true
+      register: _vault_test_raft
+      no_log: true
+
+    - name: Assert this node is the raft leader and a voter
+      ansible.builtin.assert:
+        that:
+          - _vault_test_raft.json.data.config.servers | map(attribute='node_id') | list == ['instance-vault']
+          - _vault_test_raft.json.data.config.servers[0].leader
+          - _vault_test_raft.json.data.config.servers[0].voter
+        quiet: true
+
+    - name: Try plain HTTP on the API port
+      ansible.builtin.uri:
+        url: "http://{{ vault_bind_address }}:8200/v1/sys/health"
+        status_code: [400]
+      register: _vault_test_plain
+
+    - name: List what the role keeps on the controller for the CA
+      ansible.builtin.find:
+        paths: "{{ vault_pki_dir }}"
+      register: _vault_test_pki
+      delegate_to: localhost
+      become: false
+
+    - name: Assert the controller holds the CA and no node key
+      ansible.builtin.assert:
+        that:
+          - _vault_test_pki.files | map(attribute='path') | map('basename') | sort == ['vault-ca-key.pem', 'vault-ca.pem']
+        quiet: true

@@ -1,0 +1,28 @@
+---
+vault_version: 2.1.1
+vault_node_id: "{{ inventory_hostname }}"
+vault_bind_address: ""
+vault_api_port: 8200
+vault_cluster_port: 8201
+vault_retry_join: []
+vault_ui: true
+vault_log_level: info
+
+vault_bin_dir: /usr/local/bin
+vault_user: vault
+vault_group: vault
+vault_config_dir: /etc/vault.d
+vault_data_dir: /opt/vault/data
+
+vault_tls_dir: "{{ vault_config_dir }}/tls"
+vault_pki_ca_cert: ""
+vault_pki_ca_key: ""
+vault_pki_dir: ""
+vault_pki_cert_days: 825
+
+vault_init_key_shares: 5
+vault_init_key_threshold: 3
+vault_init_output_path: ""
+vault_unseal_keys: []
+
+vault_extra_config: {}
