@@ -1,0 +1,73 @@
+---
+argument_specs:
+  main:
+    short_description: Issue a node certificate from a controller-side CA
+    description:
+      - Generates a private key on the node, builds a signing request from it,
+        signs it on the controller and installs the certificate and the CA
+        certificate on the node. The node's key never leaves the node.
+      - The CA is given as values, or generated once into a directory on the
+        controller when it is not.
+      - Idempotent. The node's current certificate is kept as long as it still
+        matches its key, the CA and the requested names.
+      - Sets C(tls_certificate_changed) and C(tls_certificate_paths) for the
+        calling role, which restarts its service on the former.
+    options:
+      tls_certificate_ca_cert:
+        type: str
+        default: ""
+        description: CA certificate, PEM. Give with O(tls_certificate_ca_key).
+      tls_certificate_ca_key:
+        type: str
+        default: ""
+        description: CA private key, PEM. Used on the controller only.
+      tls_certificate_ca_dir:
+        type: str
+        default: ""
+        description: Controller directory to generate and keep the CA in when it is not given.
+      tls_certificate_ca_name:
+        type: str
+        default: ca
+        description: File name stem for the CA in O(tls_certificate_ca_dir).
+      tls_certificate_ca_common_name:
+        type: str
+        default: Internal CA
+        description: Common name of a generated CA.
+      tls_certificate_ca_days:
+        type: int
+        default: 3650
+        description: Lifetime of a generated CA, in days.
+      tls_certificate_dir:
+        type: str
+        required: true
+        description: Directory on the node for the key, the certificate and the CA certificate.
+      tls_certificate_name:
+        type: str
+        default: server
+        description: File name stem for the node's key and certificate.
+      tls_certificate_owner:
+        type: str
+        default: root
+        description: Owner of the files on the node.
+      tls_certificate_group:
+        type: str
+        default: root
+        description: Group of the files on the node.
+      tls_certificate_common_name:
+        type: str
+        required: true
+        description: Common name of the node certificate.
+      tls_certificate_subject_alt_names:
+        type: list
+        elements: str
+        default: []
+        description: Subject alternative names, as C(DNS:name) or C(IP:address).
+      tls_certificate_extended_key_usage:
+        type: list
+        elements: str
+        default: [serverAuth, clientAuth]
+        description: Extended key usages of the node certificate.
+      tls_certificate_days:
+        type: int
+        default: 825
+        description: Lifetime of the node certificate, in days.

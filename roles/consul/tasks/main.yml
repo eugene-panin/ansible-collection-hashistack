@@ -5,7 +5,7 @@
       - consul_bind_address | length > 0
       - consul_datacenter | length > 0
       - not (consul_server | bool) or consul_bootstrap_expect | int > 0
-      - not (consul_tls | bool) or consul_pki_dir | length > 0 or _consul_ca_given | bool
+      - not (consul_tls | bool) or consul_pki_dir | length > 0 or (consul_pki_ca_cert | length > 0 and consul_pki_ca_key | length > 0)
       - not (consul_acl | bool) or consul_acl_token_path | length > 0 or _consul_tokens_given | bool
       - (consul_pki_ca_cert | length > 0) == (consul_pki_ca_key | length > 0)
       - consul_gossip_keys | type_debug == "list"
@@ -20,9 +20,32 @@
   ansible.builtin.include_tasks: install.yml
   tags: [consul, install]
 
-- name: Issue certificates
-  ansible.builtin.include_tasks: tls.yml
+- name: Issue the agent certificate
+  ansible.builtin.include_role:
+    name: eugene_panin.hashistack.tls_certificate
+  vars:
+    tls_certificate_ca_cert: "{{ consul_pki_ca_cert }}"
+    tls_certificate_ca_key: "{{ consul_pki_ca_key }}"
+    tls_certificate_ca_dir: "{{ consul_pki_dir }}"
+    tls_certificate_ca_name: consul-agent-ca
+    tls_certificate_ca_common_name: "Consul Agent CA {{ consul_datacenter }}"
+    tls_certificate_ca_days: "{{ consul_pki_ca_days }}"
+    tls_certificate_dir: "{{ consul_tls_dir }}"
+    tls_certificate_name: agent
+    tls_certificate_owner: "{{ consul_user }}"
+    tls_certificate_group: "{{ consul_group }}"
+    tls_certificate_common_name: "{{ _consul_cert_cn }}"
+    tls_certificate_subject_alt_names: "{{ _consul_cert_sans }}"
+    tls_certificate_days: "{{ consul_pki_cert_days }}"
   when: consul_tls | bool
+  tags: [consul, tls]
+
+- name: Queue a restart when the TLS material changed
+  ansible.builtin.debug:
+    msg: consul certificate updated
+  changed_when: tls_certificate_changed | default(false) | bool
+  when: consul_tls | bool
+  notify: "restart consul"
   tags: [consul, tls]
 
 - name: Settle the gossip key

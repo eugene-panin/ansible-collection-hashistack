@@ -1,0 +1,192 @@
+---
+- name: Validate role inputs
+  ansible.builtin.assert:
+    that:
+      - tls_certificate_dir | length > 0
+      - tls_certificate_common_name | length > 0
+      - _tls_certificate_ca_given | bool or tls_certificate_ca_dir | length > 0
+      - (tls_certificate_ca_cert | length > 0) == (tls_certificate_ca_key | length > 0)
+    fail_msg: >-
+      tls_certificate_dir and tls_certificate_common_name are required, and the
+      CA must come either as tls_certificate_ca_cert with tls_certificate_ca_key
+      or from tls_certificate_ca_dir on the controller
+    quiet: true
+
+- name: Ensure the Python crypto library is on the node
+  ansible.builtin.package:
+    name: python3-cryptography
+    state: present
+  register: _tls_certificate_crypto_pkg
+  until: _tls_certificate_crypto_pkg is succeeded
+  retries: 30
+  delay: 10
+
+- name: Ensure the CA directory exists on the controller
+  ansible.builtin.file:
+    path: "{{ tls_certificate_ca_dir }}"
+    state: directory
+    mode: '0700'
+  when: not _tls_certificate_ca_given | bool
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Check whether the CA already exists on the controller
+  ansible.builtin.stat:
+    path: "{{ _tls_certificate_ca_key_file }}"
+  register: _tls_certificate_ca_stat
+  when: not _tls_certificate_ca_given | bool
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Generate the CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ _tls_certificate_ca_key_file }}"
+    type: ECC
+    curve: secp256r1
+    mode: '0600'
+  when:
+    - not _tls_certificate_ca_given | bool
+    - _tls_certificate_ca_live | bool
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Build the CA signing request
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ _tls_certificate_ca_key_file }}"
+    common_name: "{{ tls_certificate_ca_common_name }}"
+    basic_constraints:
+      - "CA:TRUE"
+    basic_constraints_critical: true
+    key_usage:
+      - keyCertSign
+      - cRLSign
+      - digitalSignature
+    key_usage_critical: true
+  register: _tls_certificate_ca_csr
+  when:
+    - not _tls_certificate_ca_given | bool
+    - _tls_certificate_ca_live | bool
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+
+- name: Generate the CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ _tls_certificate_ca_cert_file }}"
+    privatekey_path: "{{ _tls_certificate_ca_key_file }}"
+    csr_content: "{{ _tls_certificate_ca_csr.csr }}"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ tls_certificate_ca_days }}d"
+    mode: '0644'
+  when:
+    - not _tls_certificate_ca_given | bool
+    - _tls_certificate_ca_live | bool
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Read the CA from the controller
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  register: _tls_certificate_ca_files
+  loop:
+    - "{{ _tls_certificate_ca_cert_file }}"
+    - "{{ _tls_certificate_ca_key_file }}"
+  when:
+    - not _tls_certificate_ca_given | bool
+    - _tls_certificate_ca_stat.stat.exists | default(false) or not ansible_check_mode
+  delegate_to: localhost
+  become: false
+  run_once: true
+  no_log: true
+
+- name: Ensure the certificate directory exists on the node
+  ansible.builtin.file:
+    path: "{{ tls_certificate_dir }}"
+    state: directory
+    owner: "{{ tls_certificate_owner }}"
+    group: "{{ tls_certificate_group }}"
+    mode: '0750'
+
+- name: Check whether the node already has its private key
+  ansible.builtin.stat:
+    path: "{{ _tls_certificate_node_key }}"
+  register: _tls_certificate_key_stat
+  check_mode: false
+
+- name: Generate the private key on the node
+  community.crypto.openssl_privatekey:
+    path: "{{ _tls_certificate_node_key }}"
+    type: ECC
+    curve: secp256r1
+    owner: "{{ tls_certificate_owner }}"
+    group: "{{ tls_certificate_group }}"
+    mode: '0600'
+  register: _tls_certificate_key
+  when: _tls_certificate_key_stat.stat.exists or not ansible_check_mode
+
+- name: Build the signing request from the node's key
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ _tls_certificate_node_key }}"
+    common_name: "{{ tls_certificate_common_name }}"
+    subject_alt_name: "{{ tls_certificate_subject_alt_names | default(omit, true) }}"
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    key_usage_critical: true
+    extended_key_usage: "{{ tls_certificate_extended_key_usage }}"
+  register: _tls_certificate_csr
+  when: _tls_certificate_key_stat.stat.exists or not ansible_check_mode
+  changed_when: false
+
+- name: Read the certificate the node holds now
+  ansible.builtin.slurp:
+    src: "{{ _tls_certificate_node_cert }}"
+  register: _tls_certificate_current
+  failed_when: false
+
+- name: Sign the certificate on the controller
+  community.crypto.x509_certificate_pipe:
+    content: "{{ _tls_certificate_current.content | default('') | b64decode | default(omit, true) }}"
+    csr_content: "{{ _tls_certificate_csr.csr }}"
+    provider: ownca
+    ownca_content: "{{ _tls_certificate_ca_cert_pem }}"
+    ownca_privatekey_content: "{{ _tls_certificate_ca_key_pem }}"
+    ownca_not_after: "+{{ tls_certificate_days }}d"
+  register: _tls_certificate_signed
+  when:
+    - _tls_certificate_csr.csr is defined
+    - _tls_certificate_ca_key_pem | length > 0
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Install the CA and the signed certificate on the node
+  ansible.builtin.copy:
+    content: "{{ item.content }}\n"
+    dest: "{{ item.dest }}"
+    owner: "{{ tls_certificate_owner }}"
+    group: "{{ tls_certificate_group }}"
+    mode: '0640'
+  loop:
+    - dest: "{{ _tls_certificate_node_ca }}"
+      content: "{{ _tls_certificate_ca_cert_pem | trim }}"
+    - dest: "{{ _tls_certificate_node_cert }}"
+      content: "{{ _tls_certificate_signed.certificate | default('') | trim }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  register: _tls_certificate_installed
+  when: item.content | length > 0
+
+- name: Report whether the node's TLS material changed
+  ansible.builtin.set_fact:
+    tls_certificate_changed: "{{ _tls_certificate_key is changed or _tls_certificate_installed is changed }}"
+    tls_certificate_paths:
+      ca: "{{ _tls_certificate_node_ca }}"
+      cert: "{{ _tls_certificate_node_cert }}"
+      key: "{{ _tls_certificate_node_key }}"

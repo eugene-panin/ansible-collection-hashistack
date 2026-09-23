@@ -1,0 +1,18 @@
+---
+tls_certificate_ca_cert: ""
+tls_certificate_ca_key: ""
+tls_certificate_ca_dir: ""
+tls_certificate_ca_name: ca
+tls_certificate_ca_common_name: Internal CA
+tls_certificate_ca_days: 3650
+
+tls_certificate_dir: ""
+tls_certificate_name: server
+tls_certificate_owner: root
+tls_certificate_group: root
+tls_certificate_common_name: ""
+tls_certificate_subject_alt_names: []
+tls_certificate_extended_key_usage:
+  - serverAuth
+  - clientAuth
+tls_certificate_days: 825

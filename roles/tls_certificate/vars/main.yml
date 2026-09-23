@@ -1,0 +1,19 @@
+---
+_tls_certificate_ca_given: "{{ tls_certificate_ca_cert | length > 0 and tls_certificate_ca_key | length > 0 }}"
+_tls_certificate_ca_cert_file: "{{ tls_certificate_ca_dir }}/{{ tls_certificate_ca_name }}.pem"
+_tls_certificate_ca_key_file: "{{ tls_certificate_ca_dir }}/{{ tls_certificate_ca_name }}-key.pem"
+
+_tls_certificate_ca_live: >-
+  {{ _tls_certificate_ca_given | bool
+     or _tls_certificate_ca_stat.stat.exists | default(false)
+     or not ansible_check_mode }}
+_tls_certificate_ca_cert_pem: >-
+  {{ tls_certificate_ca_cert if _tls_certificate_ca_given | bool
+     else (_tls_certificate_ca_files.results | default([{}]))[0].content | default('') | b64decode }}
+_tls_certificate_ca_key_pem: >-
+  {{ tls_certificate_ca_key if _tls_certificate_ca_given | bool
+     else (_tls_certificate_ca_files.results | default([{}, {}]))[1].content | default('') | b64decode }}
+
+_tls_certificate_node_ca: "{{ tls_certificate_dir }}/ca.pem"
+_tls_certificate_node_cert: "{{ tls_certificate_dir }}/{{ tls_certificate_name }}.pem"
+_tls_certificate_node_key: "{{ tls_certificate_dir }}/{{ tls_certificate_name }}-key.pem"

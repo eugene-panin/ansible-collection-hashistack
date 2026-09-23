@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: tls_certificate
+  namespace: eugene_panin
+  author: Evgenii Panin
+  description: A node certificate signed by a CA held on the controller; the node's key never leaves it
+  license: MIT
+  min_ansible_version: "2.19"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+  galaxy_tags:
+    - tls
+    - pki
+    - certificates
+dependencies: []
+allow_duplicates: true
