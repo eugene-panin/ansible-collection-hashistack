@@ -5,7 +5,7 @@ galaxy_info:
   author: Evgenii Panin
   description: Install a HashiCorp binary from releases.hashicorp.com, verified against its checksums
   license: MIT
-  min_ansible_version: "2.15"
+  min_ansible_version: "2.19"
   platforms:
     - name: Ubuntu
       versions:

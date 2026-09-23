@@ -16,29 +16,37 @@ an inventory change, not a rewrite.
 | [`consul`](roles/consul/README.md) | done | Agent with gossip encryption, TLS, ACLs |
 | `nomad` | not yet | Workload orchestration, registers into Consul |
 | `vault` | not yet | Secrets, integrated raft storage |
-| [`hashicorp_release`](roles/hashicorp_release/meta/argument_specs.yml) | done | Installs a HashiCorp binary, used by the three above |
+| [`hashicorp_release`](roles/hashicorp_release/README.md) | done | Installs a HashiCorp binary, used by the three above |
+
+| Module | Purpose |
+|---|---|
+| `consul_keyring` | Converges a Consul gossip keyring to a declared list of keys |
 
 `hashicorp_release` downloads from releases.hashicorp.com and checks the
 archive against the SHA256SUMS published for that version. It compares the
 installed version rather than trusting that a binary exists, so changing the
 version variable upgrades in place.
 
-## Secrets on the controller
+## Secrets
 
-Each role keeps two kinds of secret on the machine running Ansible, not on the
-nodes:
+Every secret a role needs is a variable. Give it a value from whatever your
+inventory reads secrets from, ansible-vault, SOPS, HashiCorp Vault, a password
+manager, and the role writes nothing to disk on the controller. Leave it empty
+and the role mints it once into a file on the controller, so a first run needs
+nothing prepared.
 
-- the CA private key, so nodes only ever receive certificates, never the
-  means to issue them;
-- the bootstrap tokens, which can only be obtained once per cluster.
+Private keys are generated where they are used. An agent's key is created on
+its node and only a signing request leaves it; the CA key stays with whoever
+runs Ansible.
 
-Where they go is a required variable on each role. Nothing defaults into your
-repository, and nothing should end up in git.
+Whatever a service needs to start cannot come from a Vault that runs on top of
+that service. Keep the bootstrap secrets outside the stack they bootstrap.
 
 ## Requirements
 
-- ansible-core >= 2.15, with `cryptography` on the controller
-- `community.crypto`, `community.general`, `ansible.posix`, pulled in
+- ansible-core >= 2.19, with `cryptography` on the controller. CI runs
+  2.19 and the latest release
+- `community.crypto` >= 2.15.0 and `community.general` >= 10.0.0, pulled in
   automatically
 - Debian or Ubuntu with systemd on the nodes
 
