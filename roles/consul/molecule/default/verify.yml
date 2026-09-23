@@ -27,7 +27,7 @@
     - name: Assert the upgrade restarted the agent onto the new binary
       ansible.builtin.assert:
         that:
-          - _consul_verify_self.json.Config.Version == '1.20.2'
+          - _consul_verify_self.json.Config.Version == '2.0.4'
         quiet: true
 
     - name: List what the role keeps in the PKI directory on the controller

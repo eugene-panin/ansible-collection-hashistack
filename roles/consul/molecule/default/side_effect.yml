@@ -4,7 +4,7 @@
   become: true
   vars:
     consul_server: true
-    consul_version: 1.20.2
+    consul_version: 2.0.4
     consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
     consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
     consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"

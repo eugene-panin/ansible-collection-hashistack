@@ -1,5 +1,5 @@
 ---
-consul_version: 1.20.2
+consul_version: 2.0.4
 consul_datacenter: dc1
 consul_server: false
 consul_bootstrap_expect: 1
