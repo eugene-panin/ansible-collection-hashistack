@@ -1,0 +1,8 @@
+---
+- name: Upgrade to the next release
+  hosts: all
+  become: true
+  vars:
+    nomad_version: 2.0.7
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

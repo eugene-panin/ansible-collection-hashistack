@@ -20,6 +20,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   address. Initialises once, writing the unseal keys and root token to a file
   on the controller, and refuses to initialise when that file already exists.
   Unseals a sealed Vault on every run. Restarts on a new binary.
+- `nomad` role: server, client or both, with gossip encryption, TLS and ACLs.
+  Bootstraps ACLs with a token minted on the controller or given as a value,
+  and checks on every run that it is the cluster's management token.
+  Restarts on a new binary. Consul and Vault integration are not included yet.
 - `tls_certificate` role: a node certificate signed by a CA held on the
   controller, with the key generated on the node. Used by `consul` and
   `vault`.

@@ -1,0 +1,67 @@
+---
+- name: Validate role inputs
+  ansible.builtin.assert:
+    that:
+      - nomad_bind_address | length > 0
+      - nomad_server | bool or nomad_client | bool
+      - not (nomad_server | bool) or nomad_bootstrap_expect | int > 0
+      - nomad_pki_dir | length > 0 or (nomad_pki_ca_cert | length > 0 and nomad_pki_ca_key | length > 0)
+      - not (nomad_acl | bool) or nomad_acl_token_path | length > 0 or nomad_acl_bootstrap_token | length > 0
+    fail_msg: >-
+      nomad_bind_address is required. The CA comes from nomad_pki_dir or from
+      nomad_pki_ca_cert with nomad_pki_ca_key. ACLs need nomad_acl_token_path
+      or nomad_acl_bootstrap_token.
+    quiet: true
+
+- name: Install
+  ansible.builtin.include_tasks: install.yml
+  tags: [nomad, install]
+
+- name: Issue the agent certificate
+  ansible.builtin.include_role:
+    name: eugene_panin.hashistack.tls_certificate
+  vars:
+    tls_certificate_ca_cert: "{{ nomad_pki_ca_cert }}"
+    tls_certificate_ca_key: "{{ nomad_pki_ca_key }}"
+    tls_certificate_ca_dir: "{{ nomad_pki_dir }}"
+    tls_certificate_ca_name: nomad-ca
+    tls_certificate_ca_common_name: Nomad CA
+    tls_certificate_dir: "{{ nomad_tls_dir }}"
+    tls_certificate_name: nomad
+    tls_certificate_common_name: "{{ _nomad_cert_cn }}"
+    tls_certificate_subject_alt_names: "{{ _nomad_cert_sans }}"
+    tls_certificate_days: "{{ nomad_pki_cert_days }}"
+  tags: [nomad, tls]
+
+- name: Queue a restart when the TLS material changed
+  ansible.builtin.debug:
+    msg: nomad certificate updated
+  changed_when: tls_certificate_changed | bool
+  notify: "restart nomad"
+  tags: [nomad, tls]
+
+- name: Settle the gossip key
+  ansible.builtin.include_tasks: gossip.yml
+  when: nomad_server | bool
+  tags: [nomad, gossip]
+
+- name: Mint the bootstrap token on the controller
+  ansible.builtin.include_tasks: secrets.yml
+  when: nomad_acl | bool
+  tags: [nomad, acl]
+
+- name: Configure
+  ansible.builtin.include_tasks: configure.yml
+  tags: [nomad, config]
+
+- name: Apply pending restarts before talking to the agent
+  ansible.builtin.meta: flush_handlers
+
+- name: Manage service
+  ansible.builtin.include_tasks: service.yml
+  tags: [nomad, service]
+
+- name: Bootstrap ACLs
+  ansible.builtin.include_tasks: acl.yml
+  when: nomad_acl | bool
+  tags: [nomad, acl]

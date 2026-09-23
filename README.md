@@ -15,7 +15,7 @@ an inventory change, not a rewrite.
 |---|---|---|
 | [`consul`](roles/consul/README.md) | done | Agent with gossip encryption, TLS, ACLs |
 | [`vault`](roles/vault/README.md) | done | Server on raft storage, TLS only, initialised once, unsealed on every run |
-| `nomad` | not yet | Workload orchestration, registers into Consul |
+| [`nomad`](roles/nomad/README.md) | done | Agent, server and client, with gossip encryption, TLS, ACLs |
 | [`hashicorp_release`](roles/hashicorp_release/README.md) | done | Installs a HashiCorp binary, used by the roles above |
 | [`tls_certificate`](roles/tls_certificate/README.md) | done | Node certificate from a controller-side CA; the node's key never leaves it |
 

@@ -1,0 +1,23 @@
+{{ ansible_managed | comment }}
+[Unit]
+Description=Nomad
+Documentation=https://developer.hashicorp.com/nomad/docs
+Wants=network-online.target
+After=network-online.target
+ConditionFileNotEmpty={{ nomad_config_dir }}/nomad.json
+
+[Service]
+ExecStart={{ nomad_bin_dir }}/nomad agent -config={{ nomad_config_dir }}/nomad.json
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+KillSignal=SIGINT
+LimitNOFILE=65536
+LimitNPROC=infinity
+TasksMax=infinity
+Delegate=yes
+OOMScoreAdjust=-1000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

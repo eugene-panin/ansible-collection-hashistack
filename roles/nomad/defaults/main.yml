@@ -1,0 +1,30 @@
+---
+nomad_version: 2.0.7
+nomad_region: global
+nomad_datacenter: dc1
+nomad_node_name: "{{ inventory_hostname }}"
+nomad_server: true
+nomad_client: true
+nomad_bootstrap_expect: 1
+nomad_bind_address: ""
+nomad_retry_join: []
+nomad_ui: true
+nomad_log_level: INFO
+
+nomad_bin_dir: /usr/local/bin
+nomad_config_dir: /etc/nomad.d
+nomad_data_dir: /opt/nomad
+
+nomad_gossip_key: ""
+
+nomad_tls_dir: "{{ nomad_config_dir }}/tls"
+nomad_pki_ca_cert: ""
+nomad_pki_ca_key: ""
+nomad_pki_dir: ""
+nomad_pki_cert_days: 825
+
+nomad_acl: true
+nomad_acl_bootstrap_token: ""
+nomad_acl_token_path: ""
+
+nomad_extra_config: {}

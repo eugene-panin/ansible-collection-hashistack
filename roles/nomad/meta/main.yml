@@ -1,0 +1,21 @@
+---
+galaxy_info:
+  role_name: nomad
+  namespace: eugene_panin
+  author: Evgenii Panin
+  description: Nomad agent, server and client, with gossip encryption, TLS and ACLs
+  license: MIT
+  min_ansible_version: "2.19"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+  galaxy_tags:
+    - nomad
+    - hashicorp
+    - scheduler
+dependencies: []

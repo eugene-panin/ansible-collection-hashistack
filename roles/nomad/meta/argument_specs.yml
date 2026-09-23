@@ -1,0 +1,114 @@
+---
+argument_specs:
+  main:
+    short_description: Run a Nomad agent
+    description:
+      - Installs Nomad, issues it a certificate through the tls_certificate
+        role, settles a gossip key, renders the agent configuration and
+        manages the systemd unit. Server, client or both on one node.
+      - With ACLs on, bootstraps the ACL system with a token minted on the
+        controller, or given as a value, and checks that it is the cluster's
+        management token.
+    options:
+      nomad_version:
+        type: str
+        default: 2.0.7
+        description: Exact version to install.
+      nomad_region:
+        type: str
+        default: global
+        description: Region, also part of the certificate names.
+      nomad_datacenter:
+        type: str
+        default: dc1
+        description: Datacenter this node belongs to.
+      nomad_node_name:
+        type: str
+        default: "{{ inventory_hostname }}"
+        description: Node name.
+      nomad_server:
+        type: bool
+        default: true
+        description: Run the server.
+      nomad_client:
+        type: bool
+        default: true
+        description: Run the client, which runs workloads.
+      nomad_bootstrap_expect:
+        type: int
+        default: 1
+        description: Servers needed before a leader is elected. Use an odd number.
+      nomad_bind_address:
+        type: str
+        required: true
+        description:
+          - Address the agent binds and advertises on.
+          - No default. Binding to a private or tunnel address is what keeps
+            the cluster off the public internet.
+      nomad_retry_join:
+        type: list
+        elements: str
+        default: []
+        description: Server addresses to join. Empty on a single node.
+      nomad_ui:
+        type: bool
+        default: true
+        description: Serve the web UI.
+      nomad_log_level:
+        type: str
+        default: INFO
+        description: Agent log level.
+      nomad_bin_dir:
+        type: str
+        default: /usr/local/bin
+        description: Where the binary is installed.
+      nomad_config_dir:
+        type: str
+        default: /etc/nomad.d
+        description: Configuration directory.
+      nomad_data_dir:
+        type: str
+        default: /opt/nomad
+        description: Data directory.
+      nomad_gossip_key:
+        type: str
+        default: ""
+        description:
+          - Gossip key for the servers, as a value. Left empty, the first host in
+            the play generates one once and shares it.
+          - The role does not rotate it.
+      nomad_tls_dir:
+        type: str
+        description: Where the certificate, key and CA land on the node.
+      nomad_pki_ca_cert:
+        type: str
+        default: ""
+        description: CA certificate, PEM. Give with O(nomad_pki_ca_key).
+      nomad_pki_ca_key:
+        type: str
+        default: ""
+        description: CA private key, PEM. Used on the controller only.
+      nomad_pki_dir:
+        type: str
+        default: ""
+        description: Controller directory to generate the CA in when it is not given.
+      nomad_pki_cert_days:
+        type: int
+        default: 825
+        description: Lifetime of the agent certificate, in days.
+      nomad_acl:
+        type: bool
+        default: true
+        description: Enable the ACL system.
+      nomad_acl_bootstrap_token:
+        type: str
+        default: ""
+        description: Bootstrap token, a UUID, as a value.
+      nomad_acl_token_path:
+        type: str
+        default: ""
+        description: Controller file the bootstrap token is minted into when not given.
+      nomad_extra_config:
+        type: dict
+        default: {}
+        description: Merged into the rendered configuration, recursively, last.

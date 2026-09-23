@@ -1,0 +1,12 @@
+---
+- name: Reload the systemd daemon
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: "reload systemd"
+
+- name: Restart nomad
+  ansible.builtin.systemd_service:
+    name: nomad
+    state: restarted
+  when: _nomad_live | bool
+  listen: "restart nomad"

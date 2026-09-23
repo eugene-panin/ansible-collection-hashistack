@@ -1,0 +1,56 @@
+---
+- name: Check whether nomad is already installed
+  ansible.builtin.stat:
+    path: "{{ nomad_bin_dir }}/nomad"
+  register: _nomad_binary_stat
+  check_mode: false
+
+- name: Refresh the apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts['os_family'] == 'Debian'
+  register: _nomad_apt_cache
+  until: _nomad_apt_cache is succeeded
+  retries: 30
+  delay: 10
+  changed_when: false
+  check_mode: false
+
+- name: Ensure unzip is installed
+  ansible.builtin.package:
+    name: unzip
+    state: present
+  register: _nomad_unzip
+  until: _nomad_unzip is succeeded
+  retries: 30
+  delay: 10
+
+- name: Install the nomad binary
+  ansible.builtin.include_role:
+    name: eugene_panin.hashistack.hashicorp_release
+  vars:
+    hashicorp_release_product: nomad
+    hashicorp_release_version: "{{ nomad_version }}"
+    hashicorp_release_bin_dir: "{{ nomad_bin_dir }}"
+
+- name: Queue a restart when a different binary was unpacked
+  ansible.builtin.debug:
+    msg: "nomad {{ nomad_version }} unpacked"
+  changed_when: hashicorp_release_result is changed
+  notify: "restart nomad"
+
+- name: Ensure the nomad directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ nomad_config_dir }}"
+      mode: '0750'
+    - path: "{{ nomad_data_dir }}"
+      mode: '0711'
+  loop_control:
+    label: "{{ item.path }}"

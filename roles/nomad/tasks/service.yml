@@ -1,0 +1,20 @@
+---
+- name: Ensure nomad is enabled and running
+  ansible.builtin.systemd_service:
+    name: nomad
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: _nomad_live | bool
+
+- name: Wait until the cluster has a leader
+  ansible.builtin.uri:
+    url: "{{ _nomad_api_addr }}/v1/status/leader"
+    ca_path: "{{ _nomad_ca_file }}"
+    return_content: true
+  register: _nomad_ready
+  until: _nomad_ready.content | default('') | length > 2
+  retries: 60
+  delay: 2
+  when: _nomad_live | bool
+  check_mode: false

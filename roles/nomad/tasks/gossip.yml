@@ -1,0 +1,52 @@
+---
+- name: Check whether a generated gossip key already exists
+  ansible.builtin.stat:
+    path: "{{ _nomad_gossip_key_path }}"
+  register: _nomad_gossip_stat
+  when: nomad_gossip_key | length == 0
+  check_mode: false
+
+- name: Generate a gossip key for a region that was not given one
+  ansible.builtin.shell:
+    cmd: >-
+      umask 077
+      && {{ nomad_bin_dir }}/nomad operator gossip keyring generate > {{ _nomad_gossip_key_path | quote }}.new
+      && mv {{ _nomad_gossip_key_path | quote }}.new {{ _nomad_gossip_key_path | quote }}
+    creates: "{{ _nomad_gossip_key_path }}"
+  when:
+    - nomad_gossip_key | length == 0
+    - _nomad_primary | bool
+    - _nomad_live | bool
+
+- name: Read the generated gossip key
+  ansible.builtin.slurp:
+    src: "{{ _nomad_gossip_key_path }}"
+  register: _nomad_gossip_slurp
+  when:
+    - nomad_gossip_key | length == 0
+    - _nomad_primary | bool
+    - _nomad_gossip_stat.stat.exists | default(false) or not ansible_check_mode
+  no_log: true
+
+- name: Share the generated gossip key with the other servers
+  ansible.builtin.set_fact:
+    _nomad_gossip_shared: "{{ _nomad_gossip_slurp.content | b64decode | trim }}"
+  when: _nomad_gossip_slurp.content is defined
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ ansible_play_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: true
+
+- name: Keep the generated gossip key on every server
+  ansible.builtin.copy:
+    content: "{{ _nomad_gossip_shared }}\n"
+    dest: "{{ _nomad_gossip_key_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+  when:
+    - nomad_gossip_key | length == 0
+    - _nomad_gossip_shared | default('') | length > 0
+  no_log: true

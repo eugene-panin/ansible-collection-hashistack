@@ -1,0 +1,21 @@
+---
+- name: Render the agent configuration
+  ansible.builtin.copy:
+    content: "{{ _nomad_config | to_nice_json }}\n"
+    dest: "{{ nomad_config_dir }}/nomad.json"
+    owner: root
+    group: root
+    mode: '0640'
+  no_log: true
+  notify: "restart nomad"
+
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: nomad.service.j2
+    dest: /etc/systemd/system/nomad.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - "reload systemd"
+    - "restart nomad"

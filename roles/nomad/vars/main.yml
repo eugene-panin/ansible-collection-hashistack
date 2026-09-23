@@ -1,0 +1,58 @@
+---
+_nomad_live: "{{ not (ansible_check_mode and not _nomad_binary_stat.stat.exists | default(false)) }}"
+_nomad_primary: "{{ inventory_hostname == ansible_play_hosts | first }}"
+
+_nomad_api_addr: "https://{{ nomad_bind_address }}:4646"
+_nomad_ca_file: "{{ nomad_tls_dir }}/ca.pem"
+
+_nomad_cert_sans: >-
+  {{ (['DNS:server.' ~ nomad_region ~ '.nomad'] if nomad_server | bool else [])
+     + (['DNS:client.' ~ nomad_region ~ '.nomad'] if nomad_client | bool else [])
+     + ['DNS:localhost', 'IP:127.0.0.1', 'IP:' ~ nomad_bind_address] }}
+_nomad_cert_cn: "{{ ('server.' if nomad_server | bool else 'client.') ~ nomad_region ~ '.nomad' }}"
+
+_nomad_gossip_key_path: "{{ nomad_config_dir }}/gossip.key"
+_nomad_gossip_value: >-
+  {{ nomad_gossip_key if nomad_gossip_key | length > 0 else _nomad_gossip_shared | default('') }}
+
+_nomad_bootstrap_token: >-
+  {{ nomad_acl_bootstrap_token if nomad_acl_bootstrap_token | length > 0
+     else _nomad_bootstrap_slurp.content | default('') | b64decode | trim }}
+
+_nomad_server_config: >-
+  {{ {'enabled': true, 'bootstrap_expect': nomad_bootstrap_expect | int}
+     | combine({'encrypt': _nomad_gossip_value} if _nomad_gossip_value | length > 0 else {})
+     | combine({'server_join': {'retry_join': nomad_retry_join}} if nomad_retry_join | length > 0 else {}) }}
+
+_nomad_client_config: >-
+  {{ {'enabled': true}
+     | combine({'servers': nomad_retry_join} if nomad_retry_join | length > 0 and not nomad_server | bool else {}) }}
+
+_nomad_base_config:
+  region: "{{ nomad_region }}"
+  datacenter: "{{ nomad_datacenter }}"
+  name: "{{ nomad_node_name }}"
+  data_dir: "{{ nomad_data_dir }}"
+  bind_addr: "{{ nomad_bind_address }}"
+  advertise:
+    http: "{{ nomad_bind_address }}"
+    rpc: "{{ nomad_bind_address }}"
+    serf: "{{ nomad_bind_address }}"
+  log_level: "{{ nomad_log_level }}"
+  ui:
+    enabled: "{{ nomad_ui | bool }}"
+  tls:
+    http: true
+    rpc: true
+    ca_file: "{{ _nomad_ca_file }}"
+    cert_file: "{{ nomad_tls_dir }}/nomad.pem"
+    key_file: "{{ nomad_tls_dir }}/nomad-key.pem"
+    verify_server_hostname: true
+    verify_https_client: false
+
+_nomad_config: >-
+  {{ _nomad_base_config
+     | combine({'server': _nomad_server_config} if nomad_server | bool else {})
+     | combine({'client': _nomad_client_config} if nomad_client | bool else {})
+     | combine({'acl': {'enabled': true}} if nomad_acl | bool else {})
+     | combine(nomad_extra_config, recursive=True) }}
