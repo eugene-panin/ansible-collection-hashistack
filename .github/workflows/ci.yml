@@ -4,8 +4,18 @@ name: ci
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - LICENSE
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - LICENSE
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:

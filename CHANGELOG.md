@@ -3,7 +3,7 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0] - 2026-09-23
 
 ### Added
 
@@ -25,8 +25,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   and checks on every run that it is the cluster's management token.
   Restarts on a new binary. Consul and Vault integration are not included yet.
 - `tls_certificate` role: a node certificate signed by a CA held on the
-  controller, with the key generated on the node. Used by `consul` and
-  `vault`.
+  controller, with the key generated on the node. Used by `consul`,
+  `vault` and `nomad`.
 - `consul_keyring` module: converges the gossip keyring to a declared list,
   primary first. Rotation is two runs, `[new, old]` then `[new]`. Supports
   check and diff mode; the diff names keys by a hash prefix, never the key.
