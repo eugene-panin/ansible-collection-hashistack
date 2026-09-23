@@ -11,6 +11,19 @@ _consul_api_port: "{{ 8501 if consul_tls | bool else 8500 }}"
 _consul_api_addr: "{{ _consul_api_scheme }}://127.0.0.1:{{ _consul_api_port }}"
 
 _consul_acl_policy_name: "agent-{{ consul_datacenter }}"
+_consul_agent_policy_rules: |
+  node_prefix "" {
+    policy = "write"
+  }
+  service_prefix "" {
+    policy = "read"
+  }
+  session_prefix "" {
+    policy = "read"
+  }
+  agent_prefix "" {
+    policy = "read"
+  }
 _consul_bootstrap_token_path: "{{ consul_acl_token_path }}"
 _consul_agent_token_path: "{{ consul_acl_token_path | dirname }}/{{ consul_datacenter }}-agent.token"
 

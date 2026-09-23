@@ -9,6 +9,12 @@
   no_log: true
   notify: "restart consul"
 
+- name: Remove the ACL policy file earlier versions left in the config directory
+  ansible.builtin.file:
+    path: "{{ consul_config_dir }}/agent-policy.hcl"
+    state: absent
+  notify: "restart consul"
+
 - name: Install the systemd unit
   ansible.builtin.template:
     src: consul.service.j2

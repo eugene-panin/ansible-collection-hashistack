@@ -14,6 +14,35 @@
       become: false
       no_log: true
 
+    - name: List what the agent will load as configuration
+      ansible.builtin.find:
+        paths: /etc/consul.d
+        patterns:
+          - "*.hcl"
+          - "*.json"
+      register: _consul_verify_config_files
+
+    - name: Assert nothing but the agent config sits in the config directory
+      ansible.builtin.assert:
+        that:
+          - _consul_verify_config_files.files | map(attribute='path') | list == ['/etc/consul.d/consul.json']
+        quiet: true
+
+    - name: Restart the agent, as a reboot would
+      ansible.builtin.systemd_service:
+        name: consul
+        state: restarted
+
+    - name: Wait for the agent to come back with a leader
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/status/leader
+        validate_certs: false
+        return_content: true
+      register: _consul_verify_after_restart
+      until: _consul_verify_after_restart.content | default('') | length > 2
+      retries: 30
+      delay: 2
+
     - name: Ask the agent who the leader is
       ansible.builtin.uri:
         url: https://127.0.0.1:8501/v1/status/leader

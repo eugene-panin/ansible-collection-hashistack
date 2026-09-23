@@ -55,27 +55,6 @@
   when: _consul_bootstrap_stat.stat.exists or _consul_bootstrap.stdout is defined
   no_log: true
 
-- name: Write the agent policy to the node
-  ansible.builtin.copy:
-    content: |
-      node_prefix "" {
-        policy = "write"
-      }
-      service_prefix "" {
-        policy = "read"
-      }
-      session_prefix "" {
-        policy = "read"
-      }
-      agent_prefix "" {
-        policy = "read"
-      }
-    dest: "{{ consul_config_dir }}/agent-policy.hcl"
-    owner: root
-    group: "{{ consul_group }}"
-    mode: '0640'
-  when: _consul_gossip_primary | bool
-
 - name: Read the existing agent policy
   ansible.builtin.command:
     argv:
@@ -108,7 +87,7 @@
       - -description
       - "Agent policy for {{ consul_datacenter }}"
       - -rules
-      - "@{{ consul_config_dir }}/agent-policy.hcl"
+      - "{{ _consul_agent_policy_rules }}"
   environment: "{{ _consul_acl_env }}"
   when:
     - _consul_live | bool
