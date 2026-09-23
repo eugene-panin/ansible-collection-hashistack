@@ -3,6 +3,18 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-09-23
+
+### Fixed
+
+- `--check` did not report a version change. The download and unpack are
+  skipped in check mode, and the restart hung off the unpack result, so a
+  dry run said nothing about a binary that a real run would replace and a
+  service it would restart. `hashicorp_release` now sets
+  `hashicorp_release_changed` from the version it finds, before downloading,
+  and `consul`, `vault` and `nomad` restart on that. Found by `--check` on a
+  live host moving Consul from 1.20.2 to 2.0.4.
+
 ## [0.1.0] - 2026-09-23
 
 ### Added

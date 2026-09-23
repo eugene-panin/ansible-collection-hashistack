@@ -37,7 +37,7 @@
 - name: Queue a restart when a different binary was unpacked
   ansible.builtin.debug:
     msg: "nomad {{ nomad_version }} unpacked"
-  changed_when: hashicorp_release_result is changed
+  changed_when: hashicorp_release_changed | bool
   notify: "restart nomad"
 
 - name: Ensure the nomad directories exist

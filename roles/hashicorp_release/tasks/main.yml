@@ -29,6 +29,10 @@
   vars:
     _hashicorp_release_version_pattern: "v{{ hashicorp_release_version | regex_escape }}(\\D|$)"
 
+- name: Tell the calling role whether the binary is about to change
+  ansible.builtin.set_fact:
+    hashicorp_release_changed: "{{ not _hashicorp_release_present | bool }}"
+
 - name: Ensure the download directory exists
   ansible.builtin.file:
     path: "{{ hashicorp_release_download_dir }}"

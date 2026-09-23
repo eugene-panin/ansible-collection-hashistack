@@ -21,3 +21,9 @@
         quiet: true
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Assert the role told its caller the binary changed
+      ansible.builtin.assert:
+        that:
+          - hashicorp_release_changed | bool
+        quiet: true

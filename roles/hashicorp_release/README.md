@@ -40,8 +40,9 @@ the host; the product roles install it.
 
 ## Notes
 
-- It only replaces the binary. It registers `hashicorp_release_result`, which
-  reports changed when a different binary was unpacked; the calling role
-  restarts its service on that.
+- It only replaces the binary. It sets `hashicorp_release_changed` to true
+  when the installed version differs from the one asked for, before it
+  downloads anything, so the calling role can restart its service on it and
+  `--check` reports that restart too.
 - In check mode on a host without the product, nothing is downloaded; the
   run reports the download directory it would create.
