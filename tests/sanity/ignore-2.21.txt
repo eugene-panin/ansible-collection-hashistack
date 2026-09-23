@@ -1,0 +1,1 @@
+plugins/modules/consul_keyring.py validate-modules:missing-gplv3-license

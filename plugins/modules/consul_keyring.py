@@ -27,7 +27,6 @@ options:
     type: list
     elements: str
     required: true
-    no_log: true
   url:
     description: Address of the Consul HTTP API.
     type: str
@@ -35,7 +34,6 @@ options:
   token:
     description: ACL token with C(keyring:write).
     type: str
-    no_log: true
   ca_path:
     description: CA bundle used to verify the agent's certificate.
     type: str
@@ -45,8 +43,10 @@ options:
     default: true
 attributes:
   check_mode:
+    description: Can run in check mode and report what would change.
     support: full
   diff_mode:
+    description: Reports each key installed, made primary or removed, by a hash of the key.
     support: full
 author:
   - Evgenii Panin (@eugene-panin)
