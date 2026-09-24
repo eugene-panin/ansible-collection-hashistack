@@ -108,6 +108,52 @@ argument_specs:
         type: str
         default: ""
         description: Controller file the bootstrap token is minted into when not given.
+      nomad_consul_address:
+        type: str
+        default: ""
+        description:
+          - Consul agent the Nomad agent registers with, C(host:port), no scheme.
+          - Empty leaves the C(consul) block out of the configuration.
+      nomad_consul_ssl:
+        type: bool
+        default: true
+        description: Talk to Consul over HTTPS.
+      nomad_consul_ca_cert:
+        type: str
+        default: ""
+        description: CA that signs the Consul agent's certificate, PEM. Empty trusts the system store.
+      nomad_consul_token:
+        type: str
+        default: ""
+        description:
+          - Consul ACL token the agent registers its own services with. Nomad
+            documents the policy it needs.
+      nomad_consul_workload_identity:
+        type: bool
+        default: true
+        description:
+          - On servers, sign workload identities for services and tasks, with
+            audience C(consul.io). Jobs then register services and read Consul
+            with their own token, through the C(nomad-workloads) auth method,
+            which has to exist in Consul.
+          - Needed when Consul has ACLs on. Turn off for a Consul without ACLs.
+      nomad_vault_address:
+        type: str
+        default: ""
+        description:
+          - Vault URL. Empty turns the integration off.
+      nomad_vault_ca_cert:
+        type: str
+        default: ""
+        description: CA that signs Vault's certificate, PEM. Empty trusts the system store.
+      nomad_vault_jwt_auth_path:
+        type: str
+        default: jwt-nomad
+        description: Where the JWT auth method that accepts Nomad's identities is mounted in Vault.
+      nomad_vault_role:
+        type: str
+        default: ""
+        description: Vault role for jobs that name none. Empty uses the auth method's default role.
       nomad_extra_config:
         type: dict
         default: {}

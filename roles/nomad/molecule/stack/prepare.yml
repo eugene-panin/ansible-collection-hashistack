@@ -1,0 +1,50 @@
+---
+- name: Issue the shared CA and the Nomad agent's Consul token on the controller
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _nomad_stack_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
+  tasks:
+    - name: Ensure the CA and token directories exist
+      ansible.builtin.file:
+        path: "{{ _nomad_stack_dir }}/{{ item }}"
+        state: directory
+        mode: '0700'
+      loop:
+        - ca
+        - tokens
+
+    - name: Generate the CA key
+      community.crypto.openssl_privatekey:
+        path: "{{ _nomad_stack_dir }}/ca/ca-key.pem"
+        type: ECC
+        curve: secp256r1
+        mode: '0600'
+
+    - name: Build the CA request
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: "{{ _nomad_stack_dir }}/ca/ca-key.pem"
+        common_name: Stack test CA
+        basic_constraints:
+          - CA:TRUE
+        basic_constraints_critical: true
+        key_usage:
+          - keyCertSign
+          - cRLSign
+        key_usage_critical: true
+      register: _nomad_stack_ca_csr
+
+    - name: Self-sign the CA
+      community.crypto.x509_certificate:
+        path: "{{ _nomad_stack_dir }}/ca/ca.pem"
+        csr_content: "{{ _nomad_stack_ca_csr.csr }}"
+        privatekey_path: "{{ _nomad_stack_dir }}/ca/ca-key.pem"
+        provider: selfsigned
+        mode: '0644'
+
+    - name: Mint the Nomad agent's Consul token
+      ansible.builtin.copy:
+        content: "{{ lookup('ansible.builtin.password', '/dev/null', length=64) | to_uuid }}\n"
+        dest: "{{ _nomad_stack_dir }}/tokens/nomad-consul.token"
+        mode: '0600'
+        force: false

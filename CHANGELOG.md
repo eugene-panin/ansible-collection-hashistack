@@ -3,6 +3,25 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `nomad` role: optional Consul and Vault integration, each on when given an
+  address. Installs the CA each one's certificate is signed by, passes the
+  agent's Consul token, and has servers sign workload identities for Consul
+  (`consul.io`) and Vault (`vault.io`). The Consul token and the Consul and
+  Vault auth methods are created outside the role. The new `stack` scenario
+  runs Consul, Vault and Nomad from this collection on one node and checks,
+  end to end, that a job registers its service in Consul and reads a Consul
+  key and a Vault secret with its own identity.
+
+### Changed
+
+- `community.general` >= 10.5.0. Earlier releases have a typo in
+  `consul_token` that makes a token with policies given by name report a
+  change on every run.
+
 ## [0.1.1] - 2026-09-23
 
 ### Fixed

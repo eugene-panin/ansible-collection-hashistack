@@ -1,0 +1,74 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/stack/requirements.yml
+driver:
+  name: docker
+platforms:
+  - name: instance-stack
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      callback_result_format: yaml
+  inventory:
+    group_vars:
+      all:
+        _nomad_stack_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
+        _nomad_stack_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+        _nomad_stack_ca_cert: "{{ lookup('ansible.builtin.file', _nomad_stack_dir ~ '/ca/ca.pem') }}"
+        _nomad_stack_ca_key: "{{ lookup('ansible.builtin.file', _nomad_stack_dir ~ '/ca/ca-key.pem') }}"
+
+        consul_server: true
+        consul_bind_address: "{{ _nomad_stack_address }}"
+        consul_pki_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        consul_pki_ca_key: "{{ _nomad_stack_ca_key }}"
+        consul_acl_token_path: "{{ _nomad_stack_dir }}/tokens/consul-bootstrap.token"
+
+        vault_bind_address: "{{ _nomad_stack_address }}"
+        vault_pki_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        vault_pki_ca_key: "{{ _nomad_stack_ca_key }}"
+        vault_init_output_path: "{{ _nomad_stack_dir }}/vault/init.json"
+
+        nomad_bind_address: "{{ _nomad_stack_address }}"
+        nomad_pki_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        nomad_pki_ca_key: "{{ _nomad_stack_ca_key }}"
+        nomad_acl_token_path: "{{ _nomad_stack_dir }}/tokens/nomad-bootstrap.token"
+        nomad_consul_address: 127.0.0.1:8501
+        nomad_consul_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        nomad_consul_token: "{{ lookup('ansible.builtin.file', _nomad_stack_dir ~ '/tokens/nomad-consul.token') }}"
+        nomad_vault_address: "https://{{ _nomad_stack_address }}:8200"
+        nomad_vault_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        nomad_extra_config:
+          client:
+            cpu_total_compute: 2000
+          plugin:
+            raw_exec:
+              config:
+                enabled: true
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - check
+    - converge
+    - idempotence
+    - check
+    - verify
+    - destroy

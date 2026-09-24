@@ -1,0 +1,233 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    _nomad_test_ca: /etc/nomad.d/tls/ca.pem
+    _nomad_test_consul: https://127.0.0.1:8501
+    _nomad_test_consul_token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+    _nomad_test_vault: "https://{{ _nomad_stack_address }}:8200"
+    _nomad_test_vault_token: "{{ (lookup('ansible.builtin.file', vault_init_output_path) | from_json).root_token }}"
+    _nomad_test_nomad: "https://{{ _nomad_stack_address }}:4646"
+    _nomad_test_nomad_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+    _nomad_test_jwks: "{{ _nomad_test_nomad }}/.well-known/jwks.json"
+  tasks:
+    - name: Wait for the Nomad agent to register itself in Consul
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/catalog/services"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        return_content: true
+      register: _nomad_test_services
+      until: >-
+        'nomad' in _nomad_test_services.json | default({})
+        and 'nomad-client' in _nomad_test_services.json | default({})
+      retries: 30
+      delay: 2
+      no_log: true
+
+    - name: Take a value for the test to find later
+      ansible.builtin.set_fact:
+        _nomad_test_value: "{{ lookup('ansible.builtin.password', '/dev/null', length=24, chars=['ascii_letters', 'digits']) }}"
+
+    - name: Give Consul what Terraform would, a policy and a role for tasks
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/acl/{{ item.kind }}"
+        method: PUT
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        body_format: json
+        body: "{{ item.body }}"
+      loop:
+        - kind: policy
+          body:
+            Name: probe-read
+            Rules: 'key_prefix "probe" { policy = "read" }'
+        - kind: role
+          body:
+            Name: nomad-tasks
+            Policies:
+              - Name: probe-read
+      loop_control:
+        label: "{{ item.kind }}"
+      no_log: true
+
+    - name: Give Consul the auth method Nomad's identities log in with
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/acl/auth-method"
+        method: PUT
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        body_format: json
+        body:
+          Name: nomad-workloads
+          Type: jwt
+          Config:
+            JWKSURL: "{{ _nomad_test_jwks }}"
+            JWKSCACert: "{{ _nomad_stack_ca_cert }}"
+            JWTSupportedAlgs: [RS256]
+            BoundAudiences: [consul.io]
+            ClaimMappings:
+              nomad_namespace: nomad_namespace
+              nomad_job_id: nomad_job_id
+              nomad_task: nomad_task
+              nomad_service: nomad_service
+      no_log: true
+
+    - name: Bind service identities to their service and task identities to the role
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/acl/binding-rule"
+        method: PUT
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        body_format: json
+        body:
+          AuthMethod: nomad-workloads
+          BindType: "{{ item.type }}"
+          BindName: "{{ item.name }}"
+          Selector: "{{ item.selector }}"
+      loop:
+        - type: service
+          name: "${value.nomad_service}"
+          selector: '"nomad_service" in value'
+        - type: role
+          name: nomad-tasks
+          selector: '"nomad_service" not in value'
+      loop_control:
+        label: "{{ item.type }}"
+      no_log: true
+
+    - name: Put the value in Consul KV
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/kv/probe"
+        method: PUT
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        body: "consul-{{ _nomad_test_value }}"
+      no_log: true
+
+    - name: Give Vault what Terraform would, a JWT auth method, a KV engine and a policy
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_vault }}/v1/{{ item.path }}"
+        method: POST
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Vault-Token: "{{ _nomad_test_vault_token }}"
+        body_format: json
+        body: "{{ item.body }}"
+        status_code: [200, 204]
+      loop:
+        - path: sys/auth/jwt-nomad
+          body:
+            type: jwt
+        - path: auth/jwt-nomad/config
+          body:
+            jwks_url: "{{ _nomad_test_jwks }}"
+            jwks_ca_pem: "{{ _nomad_stack_ca_cert }}"
+            jwt_supported_algs: [RS256]
+            default_role: nomad-workloads
+        - path: sys/policies/acl/probe-read
+          body:
+            policy: 'path "secret/data/probe" { capabilities = ["read"] }'
+        - path: auth/jwt-nomad/role/nomad-workloads
+          body:
+            role_type: jwt
+            bound_audiences: [vault.io]
+            user_claim: /nomad_job_id
+            user_claim_json_pointer: true
+            claim_mappings:
+              nomad_namespace: nomad_namespace
+              nomad_job_id: nomad_job_id
+              nomad_task: nomad_task
+            token_type: service
+            token_policies: [probe-read]
+            token_period: 30m
+        - path: sys/mounts/secret
+          body:
+            type: kv
+            options:
+              version: "2"
+        - path: secret/data/probe
+          body:
+            data:
+              value: "vault-{{ _nomad_test_value }}"
+      loop_control:
+        label: "{{ item.path }}"
+      no_log: true
+
+    - name: Parse the probe job
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/jobs/parse"
+        method: POST
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        body_format: json
+        body:
+          JobHCL: "{{ lookup('ansible.builtin.file', 'files/probe.nomad.hcl') }}"
+          Canonicalize: true
+        return_content: true
+      register: _nomad_test_job
+      no_log: true
+
+    - name: Run the probe job
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/jobs"
+        method: POST
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        body_format: json
+        body:
+          Job: "{{ _nomad_test_job.json }}"
+      no_log: true
+
+    - name: Wait for the probe allocation to run
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/job/probe/allocations"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        return_content: true
+      register: _nomad_test_allocs
+      until: _nomad_test_allocs.json | default([]) | selectattr('ClientStatus', 'equalto', 'running') | list | length == 1
+      retries: 45
+      delay: 2
+      no_log: true
+
+    - name: Read what the template rendered from Consul and Vault
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/client/fs/cat/{{ _nomad_test_alloc }}?path=probe/local/out.txt"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        return_content: true
+      vars:
+        _nomad_test_alloc: "{{ (_nomad_test_allocs.json | selectattr('ClientStatus', 'equalto', 'running') | first).ID }}"
+      register: _nomad_test_rendered
+      no_log: true
+
+    - name: Assert the task read Consul KV and Vault with its own identity
+      ansible.builtin.assert:
+        that:
+          - _nomad_test_rendered.content == 'consul=consul-' ~ _nomad_test_value ~ '\nvault=vault-' ~ _nomad_test_value ~ '\n'
+        quiet: true
+
+    - name: Wait for the probe service to be registered in Consul
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/catalog/service/probe"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        return_content: true
+      register: _nomad_test_probe_service
+      until: _nomad_test_probe_service.json | default([]) | length == 1
+      retries: 30
+      delay: 2
+      no_log: true

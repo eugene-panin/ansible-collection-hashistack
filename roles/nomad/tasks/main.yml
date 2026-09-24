@@ -7,10 +7,13 @@
       - not (nomad_server | bool) or nomad_bootstrap_expect | int > 0
       - nomad_pki_dir | length > 0 or (nomad_pki_ca_cert | length > 0 and nomad_pki_ca_key | length > 0)
       - not (nomad_acl | bool) or nomad_acl_token_path | length > 0 or nomad_acl_bootstrap_token | length > 0
+      - "'://' not in nomad_consul_address"
+      - nomad_vault_address | length == 0 or nomad_vault_address is match('https?://')
     fail_msg: >-
       nomad_bind_address is required. The CA comes from nomad_pki_dir or from
       nomad_pki_ca_cert with nomad_pki_ca_key. ACLs need nomad_acl_token_path
-      or nomad_acl_bootstrap_token.
+      or nomad_acl_bootstrap_token. nomad_consul_address is host:port, without
+      a scheme; nomad_vault_address is a URL.
     quiet: true
 
 - name: Install

@@ -28,6 +28,31 @@ _nomad_client_config: >-
   {{ {'enabled': true}
      | combine({'servers': nomad_retry_join} if nomad_retry_join | length > 0 and not nomad_server | bool else {}) }}
 
+_nomad_consul_ca_file: "{{ nomad_tls_dir }}/consul-ca.pem"
+_nomad_vault_ca_file: "{{ nomad_tls_dir }}/vault-ca.pem"
+_nomad_integration_cas:
+  - path: "{{ _nomad_consul_ca_file }}"
+    content: "{{ nomad_consul_ca_cert if nomad_consul_address | length > 0 else '' }}"
+  - path: "{{ _nomad_vault_ca_file }}"
+    content: "{{ nomad_vault_ca_cert if nomad_vault_address | length > 0 else '' }}"
+
+_nomad_consul_identity:
+  aud: [consul.io]
+  ttl: 1h
+
+_nomad_consul_config: >-
+  {{ {'address': nomad_consul_address, 'ssl': nomad_consul_ssl | bool}
+     | combine({'ca_file': _nomad_consul_ca_file} if nomad_consul_ca_cert | length > 0 else {})
+     | combine({'token': nomad_consul_token} if nomad_consul_token | length > 0 else {})
+     | combine({'service_identity': _nomad_consul_identity, 'task_identity': _nomad_consul_identity}
+               if nomad_server | bool and nomad_consul_workload_identity | bool else {}) }}
+
+_nomad_vault_config: >-
+  {{ {'enabled': true, 'address': nomad_vault_address, 'jwt_auth_backend_path': nomad_vault_jwt_auth_path}
+     | combine({'ca_file': _nomad_vault_ca_file} if nomad_vault_ca_cert | length > 0 else {})
+     | combine({'create_from_role': nomad_vault_role} if nomad_vault_role | length > 0 else {})
+     | combine({'default_identity': {'aud': ['vault.io'], 'ttl': '1h'}} if nomad_server | bool else {}) }}
+
 _nomad_base_config:
   region: "{{ nomad_region }}"
   datacenter: "{{ nomad_datacenter }}"
@@ -55,4 +80,6 @@ _nomad_config: >-
      | combine({'server': _nomad_server_config} if nomad_server | bool else {})
      | combine({'client': _nomad_client_config} if nomad_client | bool else {})
      | combine({'acl': {'enabled': true}} if nomad_acl | bool else {})
+     | combine({'consul': _nomad_consul_config} if nomad_consul_address | length > 0 else {})
+     | combine({'vault': _nomad_vault_config} if nomad_vault_address | length > 0 else {})
      | combine(nomad_extra_config, recursive=True) }}

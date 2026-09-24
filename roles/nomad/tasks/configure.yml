@@ -1,4 +1,16 @@
 ---
+- name: Install the CAs that sign the Consul and Vault certificates
+  ansible.builtin.copy:
+    content: "{{ item.content | trim }}\n"
+    dest: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ _nomad_integration_cas | selectattr('content') }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: "restart nomad"
+
 - name: Render the agent configuration
   ansible.builtin.copy:
     content: "{{ _nomad_config | to_nice_json }}\n"

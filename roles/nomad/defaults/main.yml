@@ -27,4 +27,15 @@ nomad_acl: true
 nomad_acl_bootstrap_token: ""
 nomad_acl_token_path: ""
 
+nomad_consul_address: ""
+nomad_consul_ssl: true
+nomad_consul_ca_cert: ""
+nomad_consul_token: ""
+nomad_consul_workload_identity: true
+
+nomad_vault_address: ""
+nomad_vault_ca_cert: ""
+nomad_vault_jwt_auth_path: jwt-nomad
+nomad_vault_role: ""
+
 nomad_extra_config: {}

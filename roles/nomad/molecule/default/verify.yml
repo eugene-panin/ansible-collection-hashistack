@@ -8,6 +8,19 @@
     _nomad_test_ca: /etc/nomad.d/tls/ca.pem
     _nomad_test_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
   tasks:
+    - name: Read the rendered agent configuration
+      ansible.builtin.slurp:
+        src: /etc/nomad.d/nomad.json
+      register: _nomad_test_config
+      no_log: true
+
+    - name: Assert a node given no Consul or Vault has no block for either
+      ansible.builtin.assert:
+        that:
+          - "'consul' not in _nomad_test_config.content | b64decode | from_json"
+          - "'vault' not in _nomad_test_config.content | b64decode | from_json"
+        quiet: true
+
     - name: Ask the running agent which version it is
       ansible.builtin.uri:
         url: "{{ _nomad_test_api }}/v1/agent/self"
