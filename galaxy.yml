@@ -28,3 +28,4 @@ build_ignore:
   - .ansible-lint
   - .yamllint
   - Makefile
+  - roles/*/molecule

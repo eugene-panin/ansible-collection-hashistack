@@ -32,6 +32,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 - `consul_keyring` shares its planning code with `nomad_keyring`; its
   behaviour is unchanged, and the consul `rotation` scenario still passes.
+- The Molecule scenarios are no longer shipped in the Galaxy artifact.
+- CI actions moved off Node 20: checkout v5, setup-python v6, upload-artifact v6.
 
 ## [0.2.0] - 2026-09-24
 
