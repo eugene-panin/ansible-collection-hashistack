@@ -6,6 +6,17 @@
     nomad_gossip_keys:
       - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
       - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+  pre_tasks:
+    - name: Note when the agent last started
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - nomad
+          - --property=ActiveEnterTimestampMonotonic
+          - --value
+      register: _nomad_rotation_started
+      changed_when: false
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
   post_tasks:
@@ -40,3 +51,20 @@
       - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Note when the agent last started, again
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - nomad
+          - --property=ActiveEnterTimestampMonotonic
+          - --value
+      register: _nomad_rotation_started_after
+      changed_when: false
+
+    - name: Assert the rotation did not restart the agent
+      ansible.builtin.assert:
+        that:
+          - _nomad_rotation_started_after.stdout == hostvars[inventory_hostname]['_nomad_rotation_started'].stdout
+        quiet: true

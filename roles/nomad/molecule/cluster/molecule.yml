@@ -1,0 +1,106 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/cluster/requirements.yml
+driver:
+  name: docker
+platforms:
+  - name: node1
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    docker_networks:
+      - name: hashistack-cluster
+    networks:
+      - name: hashistack-cluster
+  - name: node2
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    docker_networks:
+      - name: hashistack-cluster
+    networks:
+      - name: hashistack-cluster
+  - name: node3
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    docker_networks:
+      - name: hashistack-cluster
+    networks:
+      - name: hashistack-cluster
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      callback_result_format: yaml
+  inventory:
+    group_vars:
+      all:
+        _nomad_stack_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
+        _nomad_stack_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+        _nomad_stack_ca_cert: "{{ lookup('ansible.builtin.file', _nomad_stack_dir ~ '/ca/ca.pem') }}"
+        _nomad_stack_ca_key: "{{ lookup('ansible.builtin.file', _nomad_stack_dir ~ '/ca/ca-key.pem') }}"
+        _nomad_cluster_addresses: "{{ ansible_play_hosts_all | map('extract', hostvars, ['ansible_facts', 'default_ipv4', 'address']) | list }}"
+        _nomad_cluster_peers: "{{ _nomad_cluster_addresses | reject('equalto', _nomad_stack_address) | list }}"
+
+        consul_server: true
+        consul_bootstrap_expect: 3
+        consul_bind_address: "{{ _nomad_stack_address }}"
+        consul_retry_join: "{{ _nomad_cluster_peers }}"
+        consul_pki_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        consul_pki_ca_key: "{{ _nomad_stack_ca_key }}"
+        consul_acl_token_path: "{{ _nomad_stack_dir }}/tokens/consul-bootstrap.token"
+        consul_gossip_keys:
+          - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+
+        vault_bind_address: "{{ _nomad_stack_address }}"
+        vault_retry_join: "{{ _nomad_cluster_peers | map('regex_replace', '^', 'https://') | map('regex_replace', '$$', ':8200') | list }}"
+        vault_pki_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        vault_pki_ca_key: "{{ _nomad_stack_ca_key }}"
+        vault_init_output_path: "{{ _nomad_stack_dir }}/vault/init.json"
+
+        nomad_bootstrap_expect: 3
+        nomad_bind_address: "{{ _nomad_stack_address }}"
+        nomad_retry_join: "{{ _nomad_cluster_peers }}"
+        nomad_pki_ca_cert: "{{ _nomad_stack_ca_cert }}"
+        nomad_pki_ca_key: "{{ _nomad_stack_ca_key }}"
+        nomad_acl_token_path: "{{ _nomad_stack_dir }}/tokens/nomad-bootstrap.token"
+        nomad_gossip_keys:
+          - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+        nomad_extra_config:
+          client:
+            cpu_total_compute: 2000
+  playbooks:
+    prepare: ../stack/prepare.yml
+    converge: converge.yml
+    side_effect: side_effect.yml
+    verify: verify.yml
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - check
+    - converge
+    - idempotence
+    - check
+    - side_effect
+    - verify
+    - destroy

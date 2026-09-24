@@ -26,6 +26,12 @@ Move them into your secret store after that first run, give the keys back as
 `vault_unseal_keys`, and delete the file. Anyone holding the file holds the
 cluster.
 
+Nodes joining over `vault_retry_join` are unsealed with the same keys, after
+the first node. A joining node only counts as initialised once it has reached
+an unsealed leader, and unsealing it before that fails, so the role unseals
+the first host of the play, waits for each of the others to reach it, then
+unseals them. The `cluster` scenario of the `nomad` role covers it.
+
 If Vault is uninitialised but the file already exists, the role stops instead
 of initialising. The file would belong to another cluster, and overwriting it
 would lose that cluster's keys.

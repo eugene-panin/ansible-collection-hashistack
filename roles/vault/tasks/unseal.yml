@@ -97,7 +97,7 @@
   when: _vault_live | bool
   check_mode: false
 
-- name: Unseal with as many keys as the threshold asks for
+- name: Unseal the first node, which the others join
   ansible.builtin.uri:
     url: "{{ _vault_api_addr }}/v1/sys/unseal"
     method: PUT
@@ -110,6 +110,40 @@
     label: "key"
   when:
     - _vault_live | bool
+    - _vault_primary | bool
+    - _vault_seal.json.sealed | default(false)
+  changed_when: true
+  no_log: true
+
+- name: Wait until a joining node has reached the first one
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/seal-status"
+    ca_path: "{{ _vault_ca_file }}"
+    return_content: true
+  register: _vault_seal_joined
+  until: _vault_seal_joined.json.initialized | default(false)
+  retries: 60
+  delay: 2
+  when:
+    - _vault_live | bool
+    - not _vault_primary | bool
+    - _vault_seal.json.sealed | default(false)
+  check_mode: false
+
+- name: Unseal the other nodes
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/unseal"
+    method: PUT
+    ca_path: "{{ _vault_ca_file }}"
+    body_format: json
+    body:
+      key: "{{ item }}"
+  loop: "{{ _vault_unseal_keys_effective[: _vault_seal_joined.json.t | default(0) | int] }}"
+  loop_control:
+    label: "key"
+  when:
+    - _vault_live | bool
+    - not _vault_primary | bool
     - _vault_seal.json.sealed | default(false)
   changed_when: true
   no_log: true

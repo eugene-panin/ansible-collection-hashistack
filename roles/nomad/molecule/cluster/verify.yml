@@ -1,0 +1,103 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    _nomad_test_ca: /etc/nomad.d/tls/ca.pem
+    _nomad_test_new_key: QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+    _nomad_test_consul_token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+    _nomad_test_nomad_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+    _nomad_test_vault_token: "{{ (lookup('ansible.builtin.file', vault_init_output_path) | from_json).root_token }}"
+  tasks:
+    - name: Read the Consul raft peers from this node
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/status/peers
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        return_content: true
+      register: _nomad_test_consul_peers
+      no_log: true
+
+    - name: Read the Consul gossip keyring
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/operator/keyring
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        return_content: true
+      register: _nomad_test_consul_keyring
+      run_once: true
+      no_log: true
+
+    - name: Read the Vault health of this node
+      ansible.builtin.uri:
+        url: "https://{{ _nomad_stack_address }}:8200/v1/sys/health?standbyok=true"
+        ca_path: "{{ _nomad_test_ca }}"
+        return_content: true
+      register: _nomad_test_vault_health
+
+    - name: Read the Vault raft configuration
+      ansible.builtin.uri:
+        url: "https://{{ _nomad_stack_address }}:8200/v1/sys/storage/raft/configuration"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Vault-Token: "{{ _nomad_test_vault_token }}"
+        return_content: true
+      register: _nomad_test_vault_raft
+      run_once: true
+      no_log: true
+
+    - name: Read the Nomad raft configuration
+      ansible.builtin.uri:
+        url: "https://{{ _nomad_stack_address }}:4646/v1/operator/raft/configuration"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        return_content: true
+      register: _nomad_test_nomad_raft
+      run_once: true
+      no_log: true
+
+    - name: Wait for all three Nomad clients to be ready
+      ansible.builtin.uri:
+        url: "https://{{ _nomad_stack_address }}:4646/v1/nodes"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        return_content: true
+      register: _nomad_test_nodes
+      until: _nomad_test_nodes.json | default([]) | selectattr('Status', 'equalto', 'ready') | list | length == 3
+      retries: 45
+      delay: 2
+      run_once: true
+      no_log: true
+
+    - name: Read the Nomad gossip keyring
+      ansible.builtin.uri:
+        url: "https://{{ _nomad_stack_address }}:4646/v1/agent/keyring/list"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        return_content: true
+      register: _nomad_test_nomad_keyring
+      run_once: true
+      no_log: true
+
+    - name: Assert three Consul servers, three unsealed Vault nodes and three Nomad servers
+      ansible.builtin.assert:
+        that:
+          - _nomad_test_consul_peers.json | length == 3
+          - _nomad_test_vault_health.json.sealed == false
+          - _nomad_test_vault_raft.json.data.config.servers | length == 3
+          - _nomad_test_nomad_raft.json.Servers | length == 3
+        quiet: true
+
+    - name: Assert only the new gossip key is left, on all three, for Consul and Nomad
+      ansible.builtin.assert:
+        that:
+          - "_nomad_test_consul_keyring.json | map(attribute='Keys') | unique | list == [{_nomad_test_new_key: 3}]"
+          - "_nomad_test_nomad_keyring.json.Keys == {_nomad_test_new_key: 3}"
+        quiet: true
+      run_once: true

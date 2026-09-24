@@ -3,6 +3,27 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-09-24
+
+### Fixed
+
+- `vault`: a three-node cluster never came up. Every node was unsealed at
+  once, but a node joining over `vault_retry_join` is not initialised until
+  it reaches an unsealed leader, so unsealing it failed, or was skipped with
+  a threshold of 0. The first node is now unsealed first, and the others
+  once they have reached it. Found by the new `cluster` scenario.
+- `nomad`: rotating the gossip key restarted the agent, although a running
+  server ignores the key in its configuration once its keyring file exists.
+  A restart is now queued only when the configuration changed beyond that key.
+- The collection README said Vault registers itself in Consul; the `vault`
+  role does not configure that.
+
+### Added
+
+- `cluster` scenario: Consul, Vault and Nomad on three nodes, joined with
+  `retry_join`; checks three servers for each, every Vault node unsealed, and
+  a rotation of the Consul and Nomad gossip keys across all three.
+
 ## [0.3.1] - 2026-09-24
 
 ### Fixed

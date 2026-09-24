@@ -44,7 +44,9 @@ module. A rotation is two runs:
 Nomad's API does not say which key is primary, so the module reads it from
 `server/serf.keyring` in the data directory, where the primary comes first.
 Once that file exists, Nomad ignores the key in its configuration; the role
-still renders the primary there, for a server joining later.
+still renders the primary there, for a server joining later, but does not
+restart the agent when that key is all that changed. The `rotation` scenario
+checks the agent was not restarted.
 
 The `rotation` scenario runs both halves, checks the keyring and the primary
 after the first, and after the second restarts the agent and checks that only

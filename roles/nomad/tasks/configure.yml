@@ -11,6 +11,14 @@
     label: "{{ item.path }}"
   notify: "restart nomad"
 
+- name: Read the configuration the agent runs with
+  ansible.builtin.slurp:
+    src: "{{ nomad_config_dir }}/nomad.json"
+  register: _nomad_config_slurp
+  failed_when: false
+  check_mode: false
+  no_log: true
+
 - name: Render the agent configuration
   ansible.builtin.copy:
     content: "{{ _nomad_config | to_nice_json }}\n"
@@ -18,8 +26,25 @@
     owner: root
     group: root
     mode: '0640'
+  register: _nomad_config_render
   no_log: true
+
+- name: Queue a restart unless only the gossip key changed, which a running server ignores
+  ansible.builtin.debug:
+    msg: nomad configuration changed
+  changed_when:
+    - _nomad_config_render is changed
+    - _nomad_config_running != _nomad_config_wanted
   notify: "restart nomad"
+  no_log: true
+  vars:
+    _nomad_config_previous: "{{ _nomad_config_slurp.content | default('e30=') | b64decode | from_json }}"
+    _nomad_config_running: >-
+      {{ _nomad_config_previous | combine({'server': _nomad_config_previous.server | default({})
+         | dict2items | rejectattr('key', 'equalto', 'encrypt') | items2dict}) }}
+    _nomad_config_wanted: >-
+      {{ _nomad_config | combine({'server': _nomad_config.server | default({})
+         | dict2items | rejectattr('key', 'equalto', 'encrypt') | items2dict}) }}
 
 - name: Install the systemd unit
   ansible.builtin.template:

@@ -1,0 +1,48 @@
+---
+- name: Rotate both gossip keys across the servers, first half
+  hosts: all
+  become: true
+  vars:
+    consul_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+      - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+    nomad_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+      - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+  tasks:
+    - name: Run Consul
+      ansible.builtin.include_role:
+        name: eugene_panin.hashistack.consul
+
+    - name: Run Nomad
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+
+    - name: Read the Nomad keyring file on every server
+      ansible.builtin.slurp:
+        src: /opt/nomad/server/serf.keyring
+      register: _nomad_cluster_half_file
+
+    - name: Assert every server made the new key primary and still has the old one
+      ansible.builtin.assert:
+        that:
+          - (_nomad_cluster_half_file.content | b64decode | from_json) | first == 'QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI='
+          - (_nomad_cluster_half_file.content | b64decode | from_json) | length == 2
+        quiet: true
+
+- name: Rotate both gossip keys across the servers, second half
+  hosts: all
+  become: true
+  vars:
+    consul_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+    nomad_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+  tasks:
+    - name: Run Consul
+      ansible.builtin.include_role:
+        name: eugene_panin.hashistack.consul
+
+    - name: Run Nomad
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

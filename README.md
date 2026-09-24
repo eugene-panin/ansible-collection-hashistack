@@ -2,12 +2,15 @@
 
 Consul, Nomad and Vault, each with encryption, TLS and ACLs on from the first
 run. They live in one collection because they are configured against each
-other: Nomad registers its workloads in Consul, Vault registers itself there
-too, and all three share how certificates and tokens are handled.
+other: Nomad registers its workloads in Consul and gets secrets from Vault,
+and all three share how certificates and tokens are handled.
 
 The roles are written for a cluster. One node is the case where
 `bootstrap_expect` is 1 and there is no one to join; going to three nodes is
-an inventory change, not a rewrite.
+an inventory change, not a rewrite. The `cluster` scenario of the `nomad`
+role runs Consul, Vault and Nomad on three nodes, checks that each has three
+servers and every Vault node is unsealed, and rotates the Consul and Nomad
+gossip keys across all three.
 
 ## Roles
 
