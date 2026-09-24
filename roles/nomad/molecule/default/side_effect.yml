@@ -32,7 +32,7 @@
       delay: 2
       no_log: true
 
-    - name: Read what the node fingerprinted after the CNI upgrade alone
+    - name: Wait for the node to report what it fingerprinted after the CNI upgrade alone
       ansible.builtin.uri:
         url: "https://{{ nomad_bind_address }}:4646/v1/node/{{ _nomad_cni_nodes.json[0].ID }}"
         ca_path: /etc/nomad.d/tls/ca.pem
@@ -40,6 +40,10 @@
           X-Nomad-Token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
         return_content: true
       register: _nomad_cni_node
+      until: _nomad_cni_node.json.Attributes['plugins.cni.version.bridge'] | default('') == 'v1.9.1'
+      retries: 30
+      delay: 2
+      failed_when: false
       no_log: true
 
     - name: Assert the agent was restarted onto the new CNI plugins
