@@ -47,7 +47,7 @@ that service. Keep the bootstrap secrets outside the stack they bootstrap.
 
 - ansible-core >= 2.19, with `cryptography` on the controller. CI runs
   2.19 and the latest release
-- `community.crypto` >= 2.15.0 and `community.general` >= 10.0.0, pulled in
+- `community.crypto` >= 2.15.0 and `community.general` >= 10.5.0, pulled in
   automatically
 - Debian or Ubuntu with systemd on the nodes
 
