@@ -1,0 +1,178 @@
+---
+- name: Mint the shared CA and the Nomad agent's Consul token on the controller
+  hosts: single_node
+  gather_facts: false
+  tasks:
+    - name: Ensure the secrets directory exists on the controller
+      ansible.builtin.file:
+        path: "{{ single_node_secrets }}"
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+
+    - name: Generate the CA key once
+      community.crypto.openssl_privatekey:
+        path: "{{ single_node_secrets }}/ca-key.pem"
+        type: ECC
+        curve: secp256r1
+        mode: '0600'
+      when: single_node_ca_cert | length == 0
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+
+    - name: Check whether the CA certificate exists
+      ansible.builtin.stat:
+        path: "{{ single_node_secrets }}/ca.pem"
+      register: _single_node_ca_stat
+      when: single_node_ca_cert | length == 0
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+
+    - name: Build the CA request
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: "{{ single_node_secrets }}/ca-key.pem"
+        common_name: "{{ single_node_ca_common_name }}"
+        basic_constraints:
+          - CA:TRUE
+        basic_constraints_critical: true
+        key_usage:
+          - keyCertSign
+          - cRLSign
+        key_usage_critical: true
+      register: _single_node_ca_csr
+      when:
+        - single_node_ca_cert | length == 0
+        - not _single_node_ca_stat.stat.exists
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+
+    - name: Self-sign the CA once
+      community.crypto.x509_certificate:
+        path: "{{ single_node_secrets }}/ca.pem"
+        csr_content: "{{ _single_node_ca_csr.csr }}"
+        privatekey_path: "{{ single_node_secrets }}/ca-key.pem"
+        provider: selfsigned
+        selfsigned_not_after: +3650d
+        mode: '0644'
+      when:
+        - single_node_ca_cert | length == 0
+        - not _single_node_ca_stat.stat.exists
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+
+    - name: Mint the Nomad agent's Consul token once
+      ansible.builtin.copy:
+        content: "{{ lookup('ansible.builtin.password', '/dev/null', length=64) | to_uuid }}\n"
+        dest: "{{ single_node_secrets }}/nomad-consul.token"
+        mode: '0600'
+        force: false
+      when: single_node_nomad_consul_token | length == 0
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+      no_log: true
+
+- name: Run the node
+  hosts: single_node
+  become: true
+  tasks:
+    - name: Issue the WireGuard client keys
+      ansible.builtin.include_role:
+        name: eugene_panin.base.wireguard_client
+
+    - name: Configure the WireGuard interface
+      ansible.builtin.include_role:
+        name: eugene_panin.base.wireguard
+      vars:
+        wireguard_peers: "{{ wireguard_client_peers }}"
+
+    - name: Render the WireGuard client configurations
+      ansible.builtin.include_role:
+        name: eugene_panin.base.wireguard_client
+
+    - name: Fetch the client configurations to the controller
+      ansible.builtin.fetch:
+        src: "{{ wireguard_client_dir }}/{{ item.name }}.conf"
+        dest: "{{ single_node_secrets }}/clients/{{ item.name }}.conf"
+        flat: true
+      loop: "{{ wireguard_client_list }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: not ansible_check_mode or wireguard_public_key is defined
+
+    - name: Check whether Consul is installed yet
+      ansible.builtin.stat:
+        path: "{{ consul_bin_dir | default('/usr/local/bin') }}/consul"
+      register: _single_node_consul_binary
+      check_mode: false
+
+    - name: Run Consul
+      ansible.builtin.include_role:
+        name: eugene_panin.hashistack.consul
+
+    - name: Ensure the policy the Nomad agent registers with
+      community.general.consul_policy:
+        name: nomad-agent
+        description: Nomad agents registering themselves and their workloads
+        rules: |
+          agent_prefix "" {
+            policy = "read"
+          }
+          node_prefix "" {
+            policy = "write"
+          }
+          service_prefix "" {
+            policy = "write"
+          }
+        token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+        scheme: https
+        host: 127.0.0.1
+        port: 8501
+        ca_path: /etc/consul.d/tls/ca.pem
+        state: present
+      when: not ansible_check_mode or _single_node_consul_binary.stat.exists
+      no_log: true
+
+    - name: Ensure the Nomad agent's Consul token
+      community.general.consul_token:
+        accessor_id: "{{ 'nomad-agent' | to_uuid }}"
+        secret_id: "{{ nomad_consul_token }}"
+        description: Nomad agent
+        policies:
+          - name: nomad-agent
+        token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+        scheme: https
+        host: 127.0.0.1
+        port: 8501
+        ca_path: /etc/consul.d/tls/ca.pem
+        state: present
+      when: not ansible_check_mode or _single_node_consul_binary.stat.exists
+      no_log: true
+
+    - name: Resolve Consul names on the host and for the tunnel
+      ansible.builtin.include_role:
+        name: eugene_panin.hashistack.consul_dns
+
+    - name: Run Vault
+      ansible.builtin.include_role:
+        name: eugene_panin.hashistack.vault
+
+    - name: Run Docker for the Nomad client
+      ansible.builtin.include_role:
+        name: eugene_panin.base.docker
+
+    - name: Run Nomad
+      ansible.builtin.include_role:
+        name: eugene_panin.hashistack.nomad

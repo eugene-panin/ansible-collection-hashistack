@@ -3,6 +3,20 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-09-25
+
+### Added
+
+- `playbooks/single_node.yml` and `examples/single_node/`: one server, managed
+  and used only through WireGuard, with Consul under a domain of your own,
+  Vault, Docker and Nomad wired together. Secrets are minted next to the
+  inventory on the first run. The new `single_node` scenario runs the playbook
+  against the example inventory itself.
+
+### Changed
+
+- Depends on `eugene_panin.base` >= 0.3.3, for WireGuard and Docker.
+
 ## [0.4.0] - 2026-09-25
 
 ### Added

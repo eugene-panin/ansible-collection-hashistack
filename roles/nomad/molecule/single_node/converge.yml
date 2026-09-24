@@ -1,0 +1,3 @@
+---
+- name: Run the single node playbook
+  ansible.builtin.import_playbook: eugene_panin.hashistack.single_node

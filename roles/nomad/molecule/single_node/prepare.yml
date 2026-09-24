@@ -1,0 +1,13 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure ufw and dig are installed
+      ansible.builtin.apt:
+        name:
+          - ufw
+          - dnsutils
+        state: present
+        update_cache: true
+        cache_valid_time: 3600

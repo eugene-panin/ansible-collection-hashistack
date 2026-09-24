@@ -1,0 +1,109 @@
+---
+- name: Verify
+  hosts: single_node
+  become: true
+  gather_facts: false
+  vars:
+    _nomad_single_test_ca: /etc/nomad.d/tls/ca.pem
+    _nomad_single_test_nomad: "https://{{ single_node_address }}:4646"
+    _nomad_single_test_nomad_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+    _nomad_single_test_consul_token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+  tasks:
+    - name: Read the tunnel interface's address
+      ansible.builtin.command:
+        argv:
+          - ip
+          - -4
+          - -o
+          - address
+          - show
+          - "{{ wireguard_interface }}"
+      register: _nomad_single_test_wg
+      changed_when: false
+
+    - name: Assert the tunnel carries the node's address
+      ansible.builtin.assert:
+        that:
+          - _nomad_single_test_wg.stdout is search(single_node_address ~ '/24')
+        quiet: true
+
+    - name: Resolve Consul by the node's own domain, on the tunnel address
+      ansible.builtin.command:
+        argv:
+          - dig
+          - "@{{ single_node_address }}"
+          - "consul.service.{{ single_node_domain }}"
+          - +short
+          - +time=2
+          - +tries=1
+      register: _nomad_single_test_dns
+      until: single_node_address in _nomad_single_test_dns.stdout_lines
+      retries: 15
+      delay: 2
+      changed_when: false
+
+    - name: Read Vault's health on the tunnel address
+      ansible.builtin.uri:
+        url: "https://{{ single_node_address }}:8200/v1/sys/health"
+        ca_path: "{{ _nomad_single_test_ca }}"
+        return_content: true
+      register: _nomad_single_test_vault
+
+    - name: Wait for Nomad to register itself in Consul
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/catalog/services
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_single_test_consul_token }}"
+        return_content: true
+      register: _nomad_single_test_services
+      until: "'nomad-client' in _nomad_single_test_services.json | default({})"
+      retries: 30
+      delay: 2
+      no_log: true
+
+    - name: Find the Nomad node
+      ansible.builtin.uri:
+        url: "{{ _nomad_single_test_nomad }}/v1/nodes"
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_single_test_nomad_token }}"
+        return_content: true
+      register: _nomad_single_test_nodes
+      until: _nomad_single_test_nodes.json | default([]) | selectattr('Status', 'equalto', 'ready') | list | length == 1
+      retries: 30
+      delay: 2
+      no_log: true
+
+    - name: Wait for the node to report Docker and CNI
+      ansible.builtin.uri:
+        url: "{{ _nomad_single_test_nomad }}/v1/node/{{ _nomad_single_test_nodes.json[0].ID }}"
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_single_test_nomad_token }}"
+        return_content: true
+      register: _nomad_single_test_node
+      until:
+        - _nomad_single_test_node.json.Drivers.docker.Healthy | default(false)
+        - _nomad_single_test_node.json.Attributes['plugins.cni.version.bridge'] is defined
+      retries: 30
+      delay: 2
+      no_log: true
+
+    - name: Read the client configuration fetched to the controller
+      ansible.builtin.slurp:
+        src: "{{ single_node_secrets }}/clients/laptop.conf"
+      register: _nomad_single_test_client
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Assert the node is whole, and reachable only as the tunnel says
+      ansible.builtin.assert:
+        that:
+          - not _nomad_single_test_vault.json.sealed
+          - _nomad_single_test_node.json.Drivers.exec.Healthy
+          - _nomad_single_test_node.json.NodeResources.NodeNetworks | map(attribute='Addresses') | flatten
+            | map(attribute='Address') | list == [single_node_address]
+          - "'DNS = ' ~ single_node_address in _nomad_single_test_client.content | b64decode"
+        quiet: true

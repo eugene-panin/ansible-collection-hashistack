@@ -12,6 +12,47 @@ role runs Consul, Vault and Nomad on three nodes, checks that each has three
 servers and every Vault node is unsealed, and rotates the Consul and Nomad
 gossip keys across all three.
 
+## A single node, end to end
+
+`playbooks/single_node.yml` turns one fresh Ubuntu or Debian server into a
+Nomad host that is managed and used only through WireGuard: WireGuard and
+its client configurations, Consul with names under a domain of your own,
+Vault, Docker and Nomad wired to Consul and Vault, with bridge networking.
+The WireGuard and Docker roles come from `eugene_panin.base`, installed as a
+dependency.
+
+```bash
+ansible-galaxy collection install eugene_panin.hashistack
+cp -r ~/.ansible/collections/ansible_collections/eugene_panin/hashistack/examples/single_node my-node
+cd my-node
+# set the server's address in inventory.yml, and single_node_domain and
+# wireguard_client_list in group_vars/single_node.yml
+ansible-playbook -i inventory.yml eugene_panin.hashistack.single_node
+```
+
+The first run mints a CA, the ACL tokens, the Vault unseal keys and the
+WireGuard client configurations into `secrets/` next to the inventory. Import
+`secrets/clients/<name>.conf` into WireGuard, trust `secrets/ca.pem` on your
+devices, and move the rest into your secret store; each of them can then be
+given back as a value (`single_node_ca_cert`, `consul_acl_bootstrap_token`,
+`vault_unseal_keys` and so on) instead of being read from the directory.
+
+Every choice the playbook makes is a variable in
+`examples/single_node/group_vars/single_node.yml`, not in the playbook, so
+any role variable can be changed there. Two of them keep the node private:
+every service binds to the WireGuard address, and Nomad's client uses the
+WireGuard interface for job ports, so Docker never publishes a job on the
+public address, where ufw would not stop it.
+
+What the node needs inside Consul, Vault and Nomad to run workloads, such as
+the auth methods for workload identity, is not configuration of the host and
+is left to Terraform.
+
+The `single_node` scenario of the `nomad` role runs this playbook against the
+example inventory itself, and checks the tunnel, DNS for the domain on the
+tunnel address, an unsealed Vault, Nomad registered in Consul with Docker and
+CNI, job ports on the tunnel address only, and the client configuration.
+
 ## Roles
 
 | Role | Status | Purpose |

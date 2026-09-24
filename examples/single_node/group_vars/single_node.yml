@@ -1,0 +1,64 @@
+---
+single_node_address: 10.77.0.1
+single_node_domain: int.example.com
+single_node_secrets: "{{ inventory_dir }}/secrets"
+single_node_ca_common_name: Single node CA
+single_node_ca_cert: ""
+single_node_ca_key: ""
+single_node_nomad_consul_token: ""
+
+single_node_ca_cert_pem: >-
+  {{ single_node_ca_cert if single_node_ca_cert | length > 0
+     else lookup('ansible.builtin.file', single_node_secrets ~ '/ca.pem') }}
+single_node_ca_key_pem: >-
+  {{ single_node_ca_key if single_node_ca_key | length > 0
+     else lookup('ansible.builtin.file', single_node_secrets ~ '/ca-key.pem') }}
+single_node_nomad_consul_token_value: >-
+  {{ single_node_nomad_consul_token if single_node_nomad_consul_token | length > 0
+     else lookup('ansible.builtin.file', single_node_secrets ~ '/nomad-consul.token') }}
+
+wireguard_interface: wg0
+wireguard_address: "{{ single_node_address }}/24"
+wireguard_listen_port: 51820
+wireguard_manage_firewall: true
+wireguard_client_dir: /etc/wireguard/clients
+wireguard_client_list:
+  - name: laptop
+    address: 10.77.0.2/32
+wireguard_client_endpoint: "{{ ansible_host }}:{{ wireguard_listen_port }}"
+wireguard_client_routes: 10.77.0.0/24
+wireguard_client_dns:
+  - "{{ single_node_address }}"
+
+consul_server: true
+consul_bind_address: "{{ single_node_address }}"
+consul_alt_domain: "{{ single_node_domain }}"
+consul_pki_ca_cert: "{{ single_node_ca_cert_pem }}"
+consul_pki_ca_key: "{{ single_node_ca_key_pem }}"
+consul_acl_token_path: "{{ single_node_secrets }}/consul-bootstrap.token"
+
+consul_dns_domains:
+  - consul
+  - "{{ single_node_domain }}"
+consul_dns_listen_addresses:
+  - "{{ single_node_address }}"
+
+vault_bind_address: "{{ single_node_address }}"
+vault_pki_ca_cert: "{{ single_node_ca_cert_pem }}"
+vault_pki_ca_key: "{{ single_node_ca_key_pem }}"
+vault_init_output_path: "{{ single_node_secrets }}/vault-init.json"
+
+nomad_bind_address: "{{ single_node_address }}"
+nomad_pki_ca_cert: "{{ single_node_ca_cert_pem }}"
+nomad_pki_ca_key: "{{ single_node_ca_key_pem }}"
+nomad_acl_token_path: "{{ single_node_secrets }}/nomad-bootstrap.token"
+nomad_cni: true
+nomad_consul_address: 127.0.0.1:8501
+nomad_consul_ca_cert: "{{ single_node_ca_cert_pem }}"
+nomad_consul_token: "{{ single_node_nomad_consul_token_value }}"
+nomad_vault_address: "https://{{ single_node_address }}:8200"
+nomad_vault_ca_cert: "{{ single_node_ca_cert_pem }}"
+single_node_nomad_extra_config: {}
+nomad_extra_config: >-
+  {{ {'client': {'network_interface': wireguard_interface}}
+     | combine(single_node_nomad_extra_config, recursive=True) }}

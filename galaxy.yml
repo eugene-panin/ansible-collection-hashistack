@@ -1,7 +1,7 @@
 ---
 namespace: eugene_panin
 name: hashistack
-version: 0.4.0
+version: 0.5.0
 readme: README.md
 authors:
   - Evgenii Panin <e.panin@gmail.com>
@@ -19,6 +19,7 @@ tags:
   - vault
   - hashicorp
 dependencies:
+  eugene_panin.base: ">=0.3.3"
   ansible.posix: ">=1.5.0"
   community.crypto: ">=2.15.0"
   community.general: ">=10.5.0"

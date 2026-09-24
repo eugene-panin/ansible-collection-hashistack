@@ -1,0 +1,53 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/single_node/requirements.yml
+driver:
+  name: docker
+platforms:
+  - name: node
+    groups:
+      - single_node
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - /lib/modules:/lib/modules:ro
+      - /var/lib/docker
+      - /var/lib/containerd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    capabilities:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      callback_result_format: yaml
+  inventory:
+    links:
+      group_vars: ../../../../examples/single_node/group_vars/
+      host_vars: host_vars/
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - check
+    - converge
+    - idempotence
+    - check
+    - verify
+    - destroy

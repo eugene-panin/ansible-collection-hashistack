@@ -1,0 +1,4 @@
+---
+single_node_nomad_extra_config:
+  client:
+    cpu_total_compute: 2000
