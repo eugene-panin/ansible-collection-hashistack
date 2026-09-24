@@ -1,7 +1,7 @@
 ---
 namespace: eugene_panin
 name: hashistack
-version: 0.2.0
+version: 0.3.0
 readme: README.md
 authors:
   - Evgenii Panin <e.panin@gmail.com>
