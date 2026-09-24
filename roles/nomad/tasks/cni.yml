@@ -70,7 +70,9 @@
   community.general.modprobe:
     name: br_netfilter
     state: present
-  when: not _nomad_brnf.stat.exists
+  when:
+    - _nomad_live | bool
+    - not _nomad_brnf.stat.exists
 
 - name: Pass bridged traffic through iptables
   ansible.posix.sysctl:
