@@ -1,0 +1,8 @@
+---
+- name: Turn CNI on for the running Nomad
+  hosts: all
+  become: true
+  vars:
+    nomad_cni: true
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

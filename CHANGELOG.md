@@ -3,6 +3,17 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-09-24
+
+### Fixed
+
+- `nomad`: `--check` failed on a host already running Nomad when CNI was
+  turned on or its version changed: the release directory is only simulated
+  in check mode, and the download into it failed. Download and unpack are now
+  skipped in check mode until the release directory exists; the link and the
+  restart are still reported. Found by `--check` on a live host. The new `cni`
+  scenario turns CNI on for a running Nomad, so its `check` step covers it.
+
 ## [0.3.0] - 2026-09-24
 
 ### Breaking changes

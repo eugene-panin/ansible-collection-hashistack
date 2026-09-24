@@ -1,0 +1,6 @@
+---
+- name: Run Nomad without CNI, as a host that had it off
+  hosts: all
+  become: true
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

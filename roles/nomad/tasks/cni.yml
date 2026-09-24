@@ -1,4 +1,10 @@
 ---
+- name: Check whether this CNI release is already unpacked
+  ansible.builtin.stat:
+    path: "{{ _nomad_cni_release_dir }}"
+  register: _nomad_cni_release_stat
+  check_mode: false
+
 - name: Ensure the CNI release directory exists
   ansible.builtin.file:
     path: "{{ _nomad_cni_release_dir }}"
@@ -20,7 +26,9 @@
   until: _nomad_cni_download is succeeded
   retries: 3
   delay: 5
-  when: _nomad_live | bool
+  when:
+    - _nomad_live | bool
+    - _nomad_cni_release_stat.stat.exists or not ansible_check_mode
 
 - name: Unpack the CNI plugins into their release directory
   ansible.builtin.unarchive:
@@ -30,7 +38,9 @@
     owner: root
     group: root
     creates: "{{ _nomad_cni_release_dir }}/bridge"
-  when: _nomad_live | bool
+  when:
+    - _nomad_live | bool
+    - _nomad_cni_release_stat.stat.exists or not ansible_check_mode
 
 - name: Point the plugin path Nomad reads at this release
   ansible.builtin.file:
@@ -71,8 +81,8 @@
     name: br_netfilter
     state: present
   when:
-    - _nomad_live | bool
     - not _nomad_brnf.stat.exists
+    - not (ansible_check_mode and _nomad_kmod is changed)
 
 - name: Pass bridged traffic through iptables
   ansible.posix.sysctl:

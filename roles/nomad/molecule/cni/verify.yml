@@ -1,0 +1,41 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    _nomad_test_api: "https://{{ nomad_bind_address }}:4646"
+    _nomad_test_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+  tasks:
+    - name: Find this node
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/nodes"
+        ca_path: /etc/nomad.d/tls/ca.pem
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_token }}"
+        return_content: true
+      register: _nomad_test_nodes
+      until: _nomad_test_nodes.json | default([]) | selectattr('Status', 'equalto', 'ready') | list | length == 1
+      retries: 45
+      delay: 2
+      no_log: true
+
+    - name: Wait for the node to report the CNI plugins
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/node/{{ _nomad_test_nodes.json[0].ID }}"
+        ca_path: /etc/nomad.d/tls/ca.pem
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_token }}"
+        return_content: true
+      register: _nomad_test_node
+      until: _nomad_test_node.json.Attributes['plugins.cni.version.bridge'] | default('') == 'v1.9.1'
+      retries: 30
+      delay: 2
+      failed_when: false
+      no_log: true
+
+    - name: Assert the running agent picked up CNI once it was turned on
+      ansible.builtin.assert:
+        that:
+          - _nomad_test_node.json.Attributes['plugins.cni.version.bridge'] | default('') == 'v1.9.1'
+        quiet: true
