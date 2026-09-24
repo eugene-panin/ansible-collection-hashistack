@@ -15,7 +15,8 @@ degenerate case of a cluster, and growing it is an inventory change.
         nomad_pki_ca_cert: "{{ lookup('ansible.builtin.file', 'files/ca.pem') }}"
         nomad_pki_ca_key: "{{ vault_internal_ca_key }}"
         nomad_acl_bootstrap_token: "{{ vault_nomad_bootstrap_token }}"
-        nomad_gossip_key: "{{ vault_nomad_gossip_key }}"
+        nomad_gossip_keys:
+          - "{{ vault_nomad_gossip_key }}"
 ```
 
 ## Secrets
@@ -24,11 +25,30 @@ degenerate case of a cluster, and growing it is an inventory change.
 |---|---|---|
 | CA certificate and key | `nomad_pki_ca_cert`, `nomad_pki_ca_key` | into `nomad_pki_dir` on the controller |
 | Bootstrap token | `nomad_acl_bootstrap_token` | into `nomad_acl_token_path` on the controller |
-| Gossip key | `nomad_gossip_key` | on the first server, shared with the rest |
+| Gossip keys | `nomad_gossip_keys` | one, on the first server, shared with the rest |
 
 The bootstrap token is minted before Nomad sees it and passed as the bootstrap
 secret, so no secret depends on parsing a reply. Each run checks that the
 token it holds is the cluster's management token and fails if it is not.
+
+## Rotating the gossip key
+
+`nomad_gossip_keys` is the whole keyring, primary first, and every run
+converges the servers to it through the agent API with the `nomad_keyring`
+module. A rotation is two runs:
+
+1. `[new, old]`: `new` is installed on every server and becomes the primary,
+   `old` is still accepted.
+2. `[new]`: `old` is removed.
+
+Nomad's API does not say which key is primary, so the module reads it from
+`server/serf.keyring` in the data directory, where the primary comes first.
+Once that file exists, Nomad ignores the key in its configuration; the role
+still renders the primary there, for a server joining later.
+
+The `rotation` scenario runs both halves, checks the keyring and the primary
+after the first, and after the second restarts the agent and checks that only
+the new key is left.
 
 ## What it listens on
 
@@ -40,6 +60,16 @@ gets 403.
 The certificate names `server.<region>.nomad` and `client.<region>.nomad` as
 the node's roles require, and is issued by the `tls_certificate` role: the key
 is generated on the node, the controller signs it.
+
+## Bridge networking
+
+`nomad_cni: true` installs the CNI reference plugins on a client, from their
+GitHub release checked against its published checksum, into
+`/opt/cni/<version>` behind a `/opt/cni/bin` link, and makes bridged traffic
+pass through iptables. Jobs with `network { mode = "bridge" }` need it, and
+so does Consul service mesh. Changing `nomad_cni_version` switches the link
+and restarts the agent; the `default` scenario upgrades it and checks the
+version Nomad itself reports.
 
 ## Consul and Vault
 
@@ -88,8 +118,26 @@ Consul with that token, then sets up the Consul and Vault side as Terraform
 would and runs a job whose service lands in Consul and whose template reads a
 Consul key and a Vault secret with the job's own identity.
 
-Consul service mesh is not covered. It needs the gRPC TLS port and the
-`mesh` and `acl` permissions for servers, and there is no test for it.
+### Service mesh
+
+Envoy sidecars take their configuration from Consul over gRPC. Nomad finds
+Consul's gRPC TLS port by itself, on the host of `nomad_consul_address`, but
+does not fall back to `ca_file` to verify it, so the role sets `grpc_ca_file`
+to the same CA from `nomad_consul_ca_cert`. What is left to add is bridge
+networking on clients: `nomad_cni: true`. The `mesh` scenario fails without
+`grpc_ca_file`, and passes without any `grpc_address`.
+
+The `consul` role in this collection already has Connect and the gRPC TLS
+port on, and the agent policy above is enough for sidecars; what a mesh also
+needs inside Consul, intentions and the auth method, is Terraform's.
+
+Nomad pulls Envoy from Docker Hub by default. To take it from elsewhere, set
+the client's `meta.connect.sidecar_image` through `nomad_extra_config`.
+
+The `mesh` scenario runs Consul, Docker from `eugene_panin.base` and Nomad
+with CNI on one node, starts two groups in bridge mode with sidecars, and
+checks that one reaches the other through the mesh, and that the port the
+bridge publishes answers on the node.
 
 ## Variables
 
@@ -103,6 +151,8 @@ The full list is in `meta/argument_specs.yml`. The ones you will touch:
 | `nomad_retry_join` | `[]` | Servers to join |
 | `nomad_region`, `nomad_datacenter` | `global`, `dc1` | Placement |
 | `nomad_version` | `2.0.7` | Exact version |
+| `nomad_gossip_keys` | `[]` | Gossip keyring, primary first; empty generates one |
+| `nomad_cni`, `nomad_cni_version` | `false`, `1.9.1` | CNI plugins for bridge networking |
 | `nomad_consul_address` | `""` | Consul agent, `host:port`; empty is off |
 | `nomad_consul_ca_cert`, `nomad_consul_token` | `""` | Consul CA and agent token |
 | `nomad_consul_workload_identity` | `true` | Sign identities for Consul; off for a Consul without ACLs |
@@ -113,11 +163,9 @@ The full list is in `meta/argument_specs.yml`. The ones you will touch:
 
 ## Not in this role yet
 
-- Consul service mesh, see above.
 - Task drivers beyond what ships in the binary. The client runs as root and
   fingerprints whatever the host has; installing Docker is not this role's
-  job.
-- Gossip key rotation.
+  job, `eugene_panin.base.docker` does it.
 
 ## Notes
 

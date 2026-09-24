@@ -1,0 +1,13 @@
+---
+- name: Converge the gossip keyring to the declared keys
+  eugene_panin.hashistack.nomad_keyring:
+    keys: "{{ _nomad_gossip_keys_effective }}"
+    token: "{{ _nomad_bootstrap_token if nomad_acl | bool else omit }}"
+    url: "{{ _nomad_api_addr }}"
+    ca_path: "{{ _nomad_ca_file }}"
+    keyring_file: "{{ _nomad_keyring_file }}"
+  when:
+    - _nomad_live | bool
+    - _nomad_primary | bool
+    - _nomad_gossip_keys_effective | length > 0
+    - not (nomad_acl | bool) or _nomad_bootstrap_token | length > 0

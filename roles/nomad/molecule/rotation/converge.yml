@@ -1,10 +1,9 @@
 ---
-- name: Converge
+- name: Converge with one declared key
   hosts: all
   become: true
   vars:
-    nomad_version: 2.0.6
-    nomad_cni: true
-    nomad_cni_version: 1.9.0
+    nomad_gossip_keys:
+      - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

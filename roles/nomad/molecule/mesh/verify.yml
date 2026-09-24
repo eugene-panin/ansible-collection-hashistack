@@ -1,0 +1,154 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    _nomad_test_ca: /etc/nomad.d/tls/ca.pem
+    _nomad_test_consul: https://127.0.0.1:8501
+    _nomad_test_consul_token: "{{ lookup('ansible.builtin.file', consul_acl_token_path) }}"
+    _nomad_test_nomad: "https://{{ _nomad_stack_address }}:4646"
+    _nomad_test_nomad_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+  tasks:
+    - name: Ensure a static busybox is available to build an image from
+      ansible.builtin.apt:
+        name: busybox-static
+        state: present
+
+    - name: Ensure the image root exists
+      ansible.builtin.file:
+        path: /tmp/probe-root/bin
+        state: directory
+        mode: '0755'
+
+    - name: Put busybox in the image root
+      ansible.builtin.copy:
+        src: /bin/busybox
+        dest: /tmp/probe-root/bin/busybox
+        remote_src: true
+        mode: '0755'
+
+    - name: Import the image root as an image, with no registry involved
+      ansible.builtin.shell:
+        cmd: set -o pipefail && tar -C /tmp/probe-root -c . | docker import - probe:local
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Give Consul the auth method Nomad's service identities log in with
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/acl/auth-method"
+        method: PUT
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        body_format: json
+        body:
+          Name: nomad-workloads
+          Type: jwt
+          Config:
+            JWKSURL: "{{ _nomad_test_nomad }}/.well-known/jwks.json"
+            JWKSCACert: "{{ _nomad_stack_ca_cert }}"
+            JWTSupportedAlgs: [RS256]
+            BoundAudiences: [consul.io]
+            ClaimMappings:
+              nomad_namespace: nomad_namespace
+              nomad_job_id: nomad_job_id
+              nomad_task: nomad_task
+              nomad_service: nomad_service
+      no_log: true
+
+    - name: Bind service identities to their service
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/acl/binding-rule"
+        method: PUT
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        body_format: json
+        body:
+          AuthMethod: nomad-workloads
+          BindType: service
+          BindName: "${value.nomad_service}"
+          Selector: '"nomad_service" in value'
+      no_log: true
+
+    - name: Allow the caller to reach web through the mesh
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_consul }}/v1/config"
+        method: PUT
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Consul-Token: "{{ _nomad_test_consul_token }}"
+        body_format: json
+        body:
+          Kind: service-intentions
+          Name: web
+          Sources:
+            - Name: caller
+              Action: allow
+      no_log: true
+
+    - name: Parse the mesh job
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/jobs/parse"
+        method: POST
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        body_format: json
+        body:
+          JobHCL: "{{ lookup('ansible.builtin.file', 'files/mesh.nomad.hcl') }}"
+          Canonicalize: true
+        return_content: true
+      register: _nomad_test_job
+      no_log: true
+
+    - name: Run the mesh job
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/jobs"
+        method: POST
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        body_format: json
+        body:
+          Job: "{{ _nomad_test_job.json }}"
+      no_log: true
+
+    - name: Wait for both groups to run
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/job/mesh/allocations"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        return_content: true
+      register: _nomad_test_allocs
+      until: _nomad_test_allocs.json | default([]) | selectattr('ClientStatus', 'equalto', 'running') | list | length == 2
+      retries: 90
+      delay: 2
+      no_log: true
+
+    - name: Reach web through the port the bridge publishes on the node
+      ansible.builtin.uri:
+        url: "http://{{ _nomad_stack_address }}:18080/"
+        return_content: true
+      register: _nomad_test_bridge
+      until: _nomad_test_bridge.content | default('') == 'hello through the mesh\n'
+      retries: 30
+      delay: 2
+
+    - name: Wait for the caller to fetch web through its sidecar
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_nomad }}/v1/client/fs/cat/{{ _nomad_test_caller }}?path=alloc/data/out.txt"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_nomad_token }}"
+        return_content: true
+        status_code: [200, 404, 500]
+      vars:
+        _nomad_test_caller: "{{ (_nomad_test_allocs.json | selectattr('TaskGroup', 'equalto', 'caller') | first).ID }}"
+      register: _nomad_test_mesh
+      until: _nomad_test_mesh.content | default('') == 'hello through the mesh\n'
+      retries: 60
+      delay: 2
+      no_log: true

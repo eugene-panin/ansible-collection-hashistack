@@ -3,6 +3,36 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Breaking changes
+
+- `nomad`: `nomad_gossip_key`, a string, is replaced by `nomad_gossip_keys`,
+  a list, primary first, as `consul_gossip_keys` already was. A single key
+  becomes a one-item list.
+- `ansible.posix` is a new dependency, for sysctl.
+
+### Added
+
+- `nomad_keyring` module and gossip key rotation in the `nomad` role. The
+  keyring is converged to `nomad_gossip_keys` through the agent API; a
+  rotation is two runs, `[new, old]` then `[new]`. Nomad's API does not
+  report the primary key, so the module reads it from the server's keyring
+  file. Tested by the new `rotation` scenario.
+- `nomad`: `nomad_cni` installs the CNI reference plugins, checked against
+  the published checksum, behind a versioned `/opt/cni/bin` link, and makes
+  bridged traffic pass through iptables. Needed for bridge networking.
+- `nomad`: Consul service mesh. The role sets `grpc_ca_file` to the Consul
+  CA, which Nomad does not take from `ca_file`; Nomad finds the gRPC port on
+  its own, and clients need `nomad_cni: true`.
+  The scenario runs two groups in bridge mode with Envoy sidecars and checks
+  one reaches the other through the mesh.
+
+### Changed
+
+- `consul_keyring` shares its planning code with `nomad_keyring`; its
+  behaviour is unchanged, and the consul `rotation` scenario still passes.
+
 ## [0.2.0] - 2026-09-24
 
 ### Added

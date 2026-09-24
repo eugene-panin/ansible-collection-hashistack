@@ -1,0 +1,39 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    _nomad_test_api: "https://{{ nomad_bind_address }}:4646"
+    _nomad_test_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+  tasks:
+    - name: Restart the agent, as a reboot would
+      ansible.builtin.systemd_service:
+        name: nomad
+        state: restarted
+
+    - name: Wait for a leader again
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/status/leader"
+        ca_path: /etc/nomad.d/tls/ca.pem
+        return_content: true
+      register: _nomad_test_leader
+      until: _nomad_test_leader.content | default('') | length > 2
+      retries: 45
+      delay: 2
+
+    - name: Read the keyring after the restart
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/agent/keyring/list"
+        ca_path: /etc/nomad.d/tls/ca.pem
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_token }}"
+        return_content: true
+      register: _nomad_test_keyring
+      no_log: true
+
+    - name: Assert only the new key is left, and it survived the restart
+      ansible.builtin.assert:
+        that:
+          - _nomad_test_keyring.json.Keys | list == ['QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']
+        quiet: true

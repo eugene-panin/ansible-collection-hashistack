@@ -70,13 +70,16 @@ argument_specs:
         type: str
         default: /opt/nomad
         description: Data directory.
-      nomad_gossip_key:
-        type: str
-        default: ""
+      nomad_gossip_keys:
+        type: list
+        elements: str
+        default: []
         description:
-          - Gossip key for the servers, as a value. Left empty, the first host in
-            the play generates one once and shares it.
-          - The role does not rotate it.
+          - Gossip keys for the servers, as values. The first one is the
+            primary; the running keyring is converged to exactly this list.
+          - Rotation is two runs, C([new, old]) then C([new]).
+          - Left empty, the first host in the play generates one key once and
+            shares it.
       nomad_tls_dir:
         type: str
         description: Where the certificate, key and CA land on the node.
@@ -108,6 +111,18 @@ argument_specs:
         type: str
         default: ""
         description: Controller file the bootstrap token is minted into when not given.
+      nomad_cni:
+        type: bool
+        default: false
+        description:
+          - On clients, install the CNI reference plugins into /opt/cni/bin,
+            load br_netfilter and pass bridged traffic through iptables.
+          - Jobs with C(network { mode = "bridge" }), and so Consul service
+            mesh, need it.
+      nomad_cni_version:
+        type: str
+        default: 1.9.1
+        description: Exact release of containernetworking/plugins. Changing it switches /opt/cni/bin over and restarts the agent.
       nomad_consul_address:
         type: str
         default: ""

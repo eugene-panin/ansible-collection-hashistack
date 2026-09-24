@@ -1,0 +1,85 @@
+---
+- name: Ensure the CNI release directory exists
+  ansible.builtin.file:
+    path: "{{ _nomad_cni_release_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Download the CNI plugins, verified against the published checksum
+  ansible.builtin.get_url:
+    url: "{{ _nomad_cni_url }}"
+    dest: "/opt/cni/{{ _nomad_cni_asset }}"
+    checksum: "sha256:{{ _nomad_cni_url }}.sha256"
+    owner: root
+    group: root
+    mode: '0644'
+    timeout: 120
+  register: _nomad_cni_download
+  until: _nomad_cni_download is succeeded
+  retries: 3
+  delay: 5
+  when: _nomad_live | bool
+
+- name: Unpack the CNI plugins into their release directory
+  ansible.builtin.unarchive:
+    src: "/opt/cni/{{ _nomad_cni_asset }}"
+    dest: "{{ _nomad_cni_release_dir }}"
+    remote_src: true
+    owner: root
+    group: root
+    creates: "{{ _nomad_cni_release_dir }}/bridge"
+  when: _nomad_live | bool
+
+- name: Point the plugin path Nomad reads at this release
+  ansible.builtin.file:
+    src: "{{ _nomad_cni_release_dir }}"
+    dest: /opt/cni/bin
+    state: link
+    owner: root
+    group: root
+    force: true
+  when: _nomad_live | bool
+  notify: "restart nomad"
+
+- name: Ensure the kernel module tools are installed
+  ansible.builtin.package:
+    name: kmod
+    state: present
+  register: _nomad_kmod
+  until: _nomad_kmod is succeeded
+  retries: 30
+  delay: 10
+
+- name: Load the bridge netfilter module on boot
+  ansible.builtin.copy:
+    content: "br_netfilter\n"
+    dest: /etc/modules-load.d/nomad-cni.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Check whether bridge netfilter is already available
+  ansible.builtin.stat:
+    path: /proc/sys/net/bridge/bridge-nf-call-iptables
+  register: _nomad_brnf
+  check_mode: false
+
+- name: Load the bridge netfilter module now
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+  when: not _nomad_brnf.stat.exists
+
+- name: Pass bridged traffic through iptables
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_file: /etc/sysctl.d/90-nomad-cni.conf
+    sysctl_set: true
+    reload: true
+    state: present
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables

@@ -1,0 +1,42 @@
+---
+- name: Rotate, first half
+  hosts: all
+  become: true
+  vars:
+    nomad_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+      - +YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Read the keyring after the first half
+      ansible.builtin.uri:
+        url: "https://{{ nomad_bind_address }}:4646/v1/agent/keyring/list"
+        ca_path: /etc/nomad.d/tls/ca.pem
+        headers:
+          X-Nomad-Token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+        return_content: true
+      register: _nomad_rotation_half
+      no_log: true
+
+    - name: Read the keyring file after the first half
+      ansible.builtin.slurp:
+        src: /opt/nomad/server/serf.keyring
+      register: _nomad_rotation_half_file
+
+    - name: Assert both keys are installed and the new one is primary
+      ansible.builtin.assert:
+        that:
+          - _nomad_rotation_half.json.Keys | list | sort
+            == ['+YpzB4/EoeaNcgtU9x1QtLAsQYlgRwVRw8qr50/tMds=', 'QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']
+          - (_nomad_rotation_half_file.content | b64decode | from_json) | first == 'QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI='
+        quiet: true
+
+- name: Rotate, second half
+  hosts: all
+  become: true
+  vars:
+    nomad_gossip_keys:
+      - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

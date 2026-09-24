@@ -1,8 +1,49 @@
 ---
-- name: Upgrade to the next release
+- name: Upgrade Nomad to the next release
   hosts: all
   become: true
   vars:
     nomad_version: 2.0.7
+    nomad_cni: true
+    nomad_cni_version: 1.9.0
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+
+- name: Upgrade the CNI plugins alone
+  hosts: all
+  become: true
+  vars:
+    nomad_version: 2.0.7
+    nomad_cni: true
+    nomad_cni_version: 1.9.1
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Find this node
+      ansible.builtin.uri:
+        url: "https://{{ nomad_bind_address }}:4646/v1/nodes"
+        ca_path: /etc/nomad.d/tls/ca.pem
+        headers:
+          X-Nomad-Token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+        return_content: true
+      register: _nomad_cni_nodes
+      until: _nomad_cni_nodes.json | default([]) | selectattr('Status', 'equalto', 'ready') | list | length == 1
+      retries: 45
+      delay: 2
+      no_log: true
+
+    - name: Read what the node fingerprinted after the CNI upgrade alone
+      ansible.builtin.uri:
+        url: "https://{{ nomad_bind_address }}:4646/v1/node/{{ _nomad_cni_nodes.json[0].ID }}"
+        ca_path: /etc/nomad.d/tls/ca.pem
+        headers:
+          X-Nomad-Token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+        return_content: true
+      register: _nomad_cni_node
+      no_log: true
+
+    - name: Assert the agent was restarted onto the new CNI plugins
+      ansible.builtin.assert:
+        that:
+          - _nomad_cni_node.json.Attributes['plugins.cni.version.bridge'] == 'v1.9.1'
+        quiet: true

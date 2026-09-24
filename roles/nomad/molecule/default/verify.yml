@@ -90,6 +90,21 @@
           - _nomad_test_nodes.json | map(attribute='Name') | list == ['instance-nomad']
         quiet: true
 
+    - name: Read the bridge netfilter setting
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -n
+          - net.bridge.bridge-nf-call-iptables
+      register: _nomad_test_brnf
+      changed_when: false
+
+    - name: Assert bridged traffic passes through iptables
+      ansible.builtin.assert:
+        that:
+          - _nomad_test_brnf.stdout == '1'
+        quiet: true
+
     - name: List what the role keeps on the controller for the CA
       ansible.builtin.find:
         paths: "{{ nomad_pki_dir }}"

@@ -15,7 +15,7 @@ nomad_bin_dir: /usr/local/bin
 nomad_config_dir: /etc/nomad.d
 nomad_data_dir: /opt/nomad
 
-nomad_gossip_key: ""
+nomad_gossip_keys: []
 
 nomad_tls_dir: "{{ nomad_config_dir }}/tls"
 nomad_pki_ca_cert: ""
@@ -26,6 +26,9 @@ nomad_pki_cert_days: 825
 nomad_acl: true
 nomad_acl_bootstrap_token: ""
 nomad_acl_token_path: ""
+
+nomad_cni: false
+nomad_cni_version: 1.9.1
 
 nomad_consul_address: ""
 nomad_consul_ssl: true

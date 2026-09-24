@@ -3,7 +3,7 @@
   ansible.builtin.stat:
     path: "{{ _nomad_gossip_key_path }}"
   register: _nomad_gossip_stat
-  when: nomad_gossip_key | length == 0
+  when: _nomad_gossip_generated | bool
   check_mode: false
 
 - name: Generate a gossip key for a region that was not given one
@@ -14,7 +14,7 @@
       && mv {{ _nomad_gossip_key_path | quote }}.new {{ _nomad_gossip_key_path | quote }}
     creates: "{{ _nomad_gossip_key_path }}"
   when:
-    - nomad_gossip_key | length == 0
+    - _nomad_gossip_generated | bool
     - _nomad_primary | bool
     - _nomad_live | bool
 
@@ -23,7 +23,7 @@
     src: "{{ _nomad_gossip_key_path }}"
   register: _nomad_gossip_slurp
   when:
-    - nomad_gossip_key | length == 0
+    - _nomad_gossip_generated | bool
     - _nomad_primary | bool
     - _nomad_gossip_stat.stat.exists | default(false) or not ansible_check_mode
   no_log: true
@@ -47,6 +47,6 @@
     group: root
     mode: '0600'
   when:
-    - nomad_gossip_key | length == 0
+    - _nomad_gossip_generated | bool
     - _nomad_gossip_shared | default('') | length > 0
   no_log: true

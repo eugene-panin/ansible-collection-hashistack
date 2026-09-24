@@ -53,6 +53,13 @@
   when: nomad_acl | bool
   tags: [nomad, acl]
 
+- name: Install the CNI plugins for bridge networking
+  ansible.builtin.include_tasks: cni.yml
+  when:
+    - nomad_client | bool
+    - nomad_cni | bool
+  tags: [nomad, cni]
+
 - name: Configure
   ansible.builtin.include_tasks: configure.yml
   tags: [nomad, config]
@@ -68,3 +75,8 @@
   ansible.builtin.include_tasks: acl.yml
   when: nomad_acl | bool
   tags: [nomad, acl]
+
+- name: Converge the gossip keyring
+  ansible.builtin.include_tasks: keyring.yml
+  when: nomad_server | bool
+  tags: [nomad, gossip]

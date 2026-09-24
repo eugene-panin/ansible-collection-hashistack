@@ -12,8 +12,12 @@ _nomad_cert_sans: >-
 _nomad_cert_cn: "{{ ('server.' if nomad_server | bool else 'client.') ~ nomad_region ~ '.nomad' }}"
 
 _nomad_gossip_key_path: "{{ nomad_config_dir }}/gossip.key"
-_nomad_gossip_value: >-
-  {{ nomad_gossip_key if nomad_gossip_key | length > 0 else _nomad_gossip_shared | default('') }}
+_nomad_gossip_generated: "{{ nomad_gossip_keys | length == 0 }}"
+_nomad_gossip_keys_effective: >-
+  {{ nomad_gossip_keys if nomad_gossip_keys | length > 0
+     else ([_nomad_gossip_shared] if _nomad_gossip_shared | default('') | length > 0 else []) }}
+_nomad_gossip_value: "{{ _nomad_gossip_keys_effective | first | default('') }}"
+_nomad_keyring_file: "{{ nomad_data_dir }}/server/serf.keyring"
 
 _nomad_bootstrap_token: >-
   {{ nomad_acl_bootstrap_token if nomad_acl_bootstrap_token | length > 0
@@ -27,6 +31,11 @@ _nomad_server_config: >-
 _nomad_client_config: >-
   {{ {'enabled': true}
      | combine({'servers': nomad_retry_join} if nomad_retry_join | length > 0 and not nomad_server | bool else {}) }}
+
+_nomad_cni_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
+_nomad_cni_asset: "cni-plugins-linux-{{ _nomad_cni_arch }}-v{{ nomad_cni_version }}.tgz"
+_nomad_cni_url: "https://github.com/containernetworking/plugins/releases/download/v{{ nomad_cni_version }}/{{ _nomad_cni_asset }}"
+_nomad_cni_release_dir: "/opt/cni/{{ nomad_cni_version }}"
 
 _nomad_consul_ca_file: "{{ nomad_tls_dir }}/consul-ca.pem"
 _nomad_vault_ca_file: "{{ nomad_tls_dir }}/vault-ca.pem"
@@ -42,7 +51,8 @@ _nomad_consul_identity:
 
 _nomad_consul_config: >-
   {{ {'address': nomad_consul_address, 'ssl': nomad_consul_ssl | bool}
-     | combine({'ca_file': _nomad_consul_ca_file} if nomad_consul_ca_cert | length > 0 else {})
+     | combine({'ca_file': _nomad_consul_ca_file, 'grpc_ca_file': _nomad_consul_ca_file}
+               if nomad_consul_ca_cert | length > 0 else {})
      | combine({'token': nomad_consul_token} if nomad_consul_token | length > 0 else {})
      | combine({'service_identity': _nomad_consul_identity, 'task_identity': _nomad_consul_identity}
                if nomad_server | bool and nomad_consul_workload_identity | bool else {}) }}
