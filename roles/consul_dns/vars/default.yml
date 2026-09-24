@@ -1,0 +1,3 @@
+---
+_consul_dns_packages:
+  - systemd-resolved

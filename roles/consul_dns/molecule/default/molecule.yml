@@ -1,0 +1,52 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/default/requirements.yml
+driver:
+  name: docker
+platforms:
+  - name: instance-consul-dns
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      callback_result_format: yaml
+  inventory:
+    group_vars:
+      all:
+        consul_server: true
+        consul_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+        consul_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
+        consul_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/bootstrap.token"
+        consul_alt_domain: int.example.test
+        consul_dns_domains:
+          - consul
+          - int.example.test
+        consul_dns_listen_addresses:
+          - 10.99.0.1
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - check
+    - converge
+    - idempotence
+    - check
+    - verify
+    - destroy

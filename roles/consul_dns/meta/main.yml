@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  role_name: consul_dns
+  namespace: eugene_panin
+  author: Evgenii Panin
+  description: Resolve Consul names on the host and serve them on extra addresses, through systemd-resolved
+  license: MIT
+  min_ansible_version: "2.19"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+  galaxy_tags:
+    - consul
+    - dns
+dependencies: []

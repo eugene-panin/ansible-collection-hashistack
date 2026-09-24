@@ -17,6 +17,7 @@ gossip keys across all three.
 | Role | Status | Purpose |
 |---|---|---|
 | [`consul`](roles/consul/README.md) | done | Agent with gossip encryption, TLS, ACLs |
+| [`consul_dns`](roles/consul_dns/README.md) | done | Consul names through systemd-resolved, on the host and on extra addresses |
 | [`vault`](roles/vault/README.md) | done | Server on raft storage, TLS only, initialised once, unsealed on every run |
 | [`nomad`](roles/nomad/README.md) | done | Agent, server and client, with gossip encryption, TLS, ACLs |
 | [`hashicorp_release`](roles/hashicorp_release/README.md) | done | Installs a HashiCorp binary, used by the roles above |

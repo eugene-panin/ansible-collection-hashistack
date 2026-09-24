@@ -1,0 +1,60 @@
+---
+- name: Validate role inputs
+  ansible.builtin.assert:
+    that:
+      - consul_dns_server is match('^[^:]+:[0-9]+$')
+      - consul_dns_domains | length > 0
+      - consul_dns_listen_addresses | type_debug == 'list'
+    fail_msg: >-
+      consul_dns_server is host:port, consul_dns_domains names at least one
+      domain, and consul_dns_listen_addresses is a list.
+    quiet: true
+
+- name: Load OS-specific variables
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_facts['distribution'] }}-{{ ansible_facts['distribution_major_version'] }}.yml"
+        - default.yml
+      paths:
+        - "{{ role_path }}/vars"
+
+- name: Ensure systemd-resolved is installed
+  ansible.builtin.apt:
+    name: "{{ _consul_dns_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: _consul_dns_apt
+  until: _consul_dns_apt is succeeded
+  retries: 30
+  delay: 10
+  when: _consul_dns_packages | length > 0
+
+- name: Ensure the resolved drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Route the Consul domains to Consul
+  ansible.builtin.template:
+    src: consul.conf.j2
+    dest: /etc/systemd/resolved.conf.d/consul.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: "restart systemd-resolved"
+
+- name: Apply pending restarts before checking the resolver
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure systemd-resolved is enabled and running
+  ansible.builtin.systemd_service:
+    name: systemd-resolved
+    enabled: true
+    state: started
+  when: not ansible_check_mode or _consul_dns_packages | length == 0 or _consul_dns_apt is not changed

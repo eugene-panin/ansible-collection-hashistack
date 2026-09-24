@@ -1,0 +1,8 @@
+{{ ansible_managed | comment }}
+[Resolve]
+DNS={{ consul_dns_server }}
+DNSSEC=false
+Domains={{ consul_dns_domains | map('regex_replace', '^', '~') | join(' ') }}
+{% for address in consul_dns_listen_addresses %}
+DNSStubListenerExtra={{ address }}
+{% endfor %}

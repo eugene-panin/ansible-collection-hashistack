@@ -1,0 +1,90 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    _consul_dns_test_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+  tasks:
+    - name: Bring up the extra address only now, after resolved has started
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          ip link show dns-extra >/dev/null 2>&1 || ip link add dns-extra type dummy;
+          ip address replace 10.99.0.1/32 dev dns-extra;
+          ip link set dns-extra up
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Read the domains resolved routes to its global DNS servers
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - domain
+      register: _consul_dns_test_domains
+      changed_when: false
+
+    - name: Assert the Consul domains are routing-only, so other names never reach Consul
+      ansible.builtin.assert:
+        that:
+          - "'Global: ~consul ~int.example.test' in _consul_dns_test_domains.stdout_lines"
+        quiet: true
+
+    - name: Ask each resolver address for Consul by both domains
+      ansible.builtin.command:
+        argv:
+          - dig
+          - "@{{ item.server }}"
+          - "{{ item.name }}"
+          - +short
+          - +time=2
+          - +tries=1
+      register: _consul_dns_test_answers
+      until: _consul_dns_test_answers.stdout_lines | select('equalto', _consul_dns_test_address) | list | length == 1
+      retries: 15
+      delay: 2
+      changed_when: false
+      loop:
+        - server: 127.0.0.53
+          name: consul.service.consul
+        - server: 127.0.0.53
+          name: consul.service.int.example.test
+        - server: 10.99.0.1
+          name: consul.service.consul
+        - server: 10.99.0.1
+          name: consul.service.int.example.test
+      loop_control:
+        label: "{{ item.name }} at {{ item.server }}"
+
+    - name: Read the upstream resolver the container was given
+      ansible.builtin.command:
+        argv:
+          - awk
+          - /^nameserver/ { print $2; exit }
+          - /etc/resolv.conf
+      register: _consul_dns_test_upstream
+      changed_when: false
+
+    - name: Give the interface its own DNS server, as DHCP would on a real host
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - dns
+          - eth0
+          - "{{ _consul_dns_test_upstream.stdout }}"
+      changed_when: true
+
+    - name: Ask resolved for a name outside the Consul domains
+      ansible.builtin.command:
+        argv:
+          - dig
+          - "@127.0.0.53"
+          - github.com
+          - +short
+          - +time=3
+          - +tries=1
+      register: _consul_dns_test_outside
+      until: _consul_dns_test_outside.stdout_lines | select('match', '^[0-9.]+$') | list | length > 0
+      retries: 5
+      delay: 2
+      changed_when: false

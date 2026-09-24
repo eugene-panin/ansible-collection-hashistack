@@ -31,6 +31,7 @@ the store.
 | CA certificate and key | `consul_pki_ca_cert`, `consul_pki_ca_key` | `consul_pki_dir` |
 | Bootstrap token | `consul_acl_bootstrap_token` | `consul_acl_token_path` |
 | Agent token, per host | `consul_acl_agent_token` | next to `consul_acl_token_path` |
+| DNS token, per datacenter | `consul_acl_dns_token` | next to `consul_acl_token_path`, if that is set |
 | Gossip keys | `consul_gossip_keys` | the nodes, see below |
 
 Minting is there so a first deployment works with nothing prepared. Move the
@@ -140,6 +141,8 @@ touch:
 | `consul_pki_dir` | `""` | Where the CA is minted when not given |
 | `consul_acl_bootstrap_token` | `""` | Bootstrap token, as a value |
 | `consul_acl_agent_token` | `""` | This host's agent token, as a value |
+| `consul_acl_dns_token` | `""` | Token DNS answers with, `dns-read` policy |
+| `consul_alt_domain` | `""` | A second DNS domain, next to `consul` |
 | `consul_acl_token_path` | `""` | Where tokens are minted when not given |
 | `consul_gossip_keys` | `[]` | Keyring to converge to, primary first; empty generates one |
 | `consul_extra_config` | `{}` | Merged into the rendered config |

@@ -14,6 +14,8 @@ _consul_token_dir: "{{ consul_acl_token_path | dirname }}"
 _consul_bootstrap_token_path: "{{ consul_acl_token_path }}"
 _consul_agent_token_path: "{{ _consul_token_dir }}/{{ consul_datacenter }}-{{ consul_node_name }}-agent.token"
 _consul_agent_accessor: "{{ (consul_datacenter ~ '/' ~ consul_node_name) | to_uuid }}"
+_consul_dns_token_path: "{{ _consul_token_dir }}/{{ consul_datacenter }}-dns.token"
+_consul_dns_accessor: "{{ (consul_datacenter ~ '/dns') | to_uuid }}"
 
 _consul_management_token: >-
   {{ consul_acl_bootstrap_token if consul_acl_bootstrap_token | length > 0
@@ -21,6 +23,10 @@ _consul_management_token: >-
 _consul_agent_token: >-
   {{ consul_acl_agent_token if consul_acl_agent_token | length > 0
      else _consul_agent_token_slurp.content | default('') | b64decode | trim }}
+_consul_dns_token_minted: "{{ consul_acl_dns_token | length == 0 and consul_acl_token_path | length > 0 }}"
+_consul_dns_token: >-
+  {{ consul_acl_dns_token if consul_acl_dns_token | length > 0
+     else _consul_dns_token_slurp.content | default('') | b64decode | trim }}
 _consul_tokens_given: "{{ consul_acl_bootstrap_token | length > 0 and consul_acl_agent_token | length > 0 }}"
 
 _consul_gossip_generated: "{{ consul_gossip_keys | length == 0 }}"
@@ -67,6 +73,11 @@ _consul_acl_agent_token_config:
     tokens:
       agent: "{{ _consul_agent_token }}"
 
+_consul_acl_dns_token_config:
+  acl:
+    tokens:
+      dns: "{{ _consul_dns_token }}"
+
 _consul_tls_config:
   tls:
     defaults:
@@ -88,6 +99,9 @@ _consul_config: >-
      | combine(_consul_acl_config if consul_acl | bool else {})
      | combine(_consul_acl_agent_token_config
                if consul_acl | bool and _consul_agent_token | length > 0 else {}, recursive=True)
+     | combine(_consul_acl_dns_token_config
+               if consul_acl | bool and _consul_dns_token | length > 0 else {}, recursive=True)
+     | combine({'alt_domain': consul_alt_domain} if consul_alt_domain | length > 0 else {})
      | combine(_consul_tls_config if consul_tls | bool else {})
      | combine({'encrypt': _consul_gossip_value} if _consul_gossip_value | length > 0 else {})
      | combine(consul_extra_config, recursive=True) }}

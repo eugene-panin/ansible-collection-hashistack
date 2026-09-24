@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Resolve Consul names through systemd-resolved
+    description:
+      - Sends queries for the Consul domains to the Consul DNS interface and
+        everything else where it went before, with a systemd-resolved drop-in.
+      - Optionally serves the same resolver on extra addresses, such as the
+        WireGuard address, for the clients behind it.
+    options:
+      consul_dns_server:
+        type: str
+        default: 127.0.0.1:8600
+        description: Consul DNS interface, C(host:port).
+      consul_dns_domains:
+        type: list
+        elements: str
+        default: [consul]
+        description:
+          - Domains routed to Consul. Add the one set as C(consul_alt_domain)
+            in the consul role.
+      consul_dns_listen_addresses:
+        type: list
+        elements: str
+        default: []
+        description:
+          - Extra addresses resolved listens on, port 53, such as the WireGuard
+            address. The address does not have to exist yet when resolved
+            starts.

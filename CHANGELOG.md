@@ -3,6 +3,20 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-09-25
+
+### Added
+
+- `consul_dns` role: Consul names through systemd-resolved, on the host and on
+  extra addresses such as the WireGuard one, with every other name resolved
+  as before.
+- `consul`: `consul_alt_domain`, a second DNS domain next to `consul`, and a
+  DNS token, without which Consul answers no DNS query under
+  `default_policy` deny. The token is minted when `consul_acl_token_path` is
+  set, or given as `consul_acl_dns_token`. Its `dns-read` policy has the rules
+  of the `builtin/dns` template; `consul_token` reports a token with a
+  templated policy as changed on every run.
+
 ## [0.3.2] - 2026-09-24
 
 ### Fixed

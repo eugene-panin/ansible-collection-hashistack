@@ -1,0 +1,12 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  tasks:
+    - name: Run Consul
+      ansible.builtin.include_role:
+        name: eugene_panin.hashistack.consul
+
+    - name: Resolve Consul names through systemd-resolved
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

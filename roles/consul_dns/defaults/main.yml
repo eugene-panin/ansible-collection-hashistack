@@ -1,0 +1,5 @@
+---
+consul_dns_server: 127.0.0.1:8600
+consul_dns_domains:
+  - consul
+consul_dns_listen_addresses: []

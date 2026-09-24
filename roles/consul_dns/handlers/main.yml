@@ -1,0 +1,7 @@
+---
+- name: Restart systemd-resolved
+  ansible.builtin.systemd_service:
+    name: systemd-resolved
+    state: restarted
+  when: not ansible_check_mode or _consul_dns_packages | length == 0 or _consul_dns_apt is not changed
+  listen: "restart systemd-resolved"

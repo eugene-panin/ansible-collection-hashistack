@@ -35,5 +35,8 @@ consul_acl_default_policy: deny
 consul_acl_token_path: ""
 consul_acl_bootstrap_token: ""
 consul_acl_agent_token: ""
+consul_acl_dns_token: ""
+
+consul_alt_domain: ""
 
 consul_extra_config: {}

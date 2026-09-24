@@ -150,6 +150,23 @@ argument_specs:
         description:
           - The bootstrap token, a UUID. The ACL system is bootstrapped with
             it. Left empty, one is minted into O(consul_acl_token_path).
+      consul_acl_dns_token:
+        type: str
+        default: ""
+        description:
+          - Token Consul answers DNS queries with, as a value. Left empty, it is
+            minted once next to O(consul_acl_token_path) when that is set;
+            with neither, there is no DNS token.
+          - The role creates it with a C(dns-read) policy, the rules of the
+            built-in C(builtin/dns) template, which read nodes, services and prepared
+            queries. With C(default_policy) deny, DNS answers nothing without it.
+      consul_alt_domain:
+        type: str
+        default: ""
+        description:
+          - A second domain Consul answers DNS for, next to C(consul), such as
+            C(int.example.com). C(web.service.int.example.com) then resolves
+            like C(web.service.consul).
       consul_acl_agent_token:
         type: str
         default: ""

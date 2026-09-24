@@ -30,3 +30,50 @@
     - _consul_management_token | length > 0
     - _consul_agent_token | length > 0
   no_log: true
+
+- name: Ensure the policy DNS answers with
+  community.general.consul_policy:
+    name: dns-read
+    description: Read what Consul DNS answers about, as the builtin/dns template does
+    rules: |
+      node_prefix "" {
+        policy = "read"
+      }
+      service_prefix "" {
+        policy = "read"
+      }
+      query_prefix "" {
+        policy = "read"
+      }
+    token: "{{ _consul_management_token }}"
+    scheme: "{{ _consul_api_scheme }}"
+    host: 127.0.0.1
+    port: "{{ _consul_api_port | int }}"
+    ca_path: "{{ _consul_api_ca }}"
+    state: present
+  when:
+    - _consul_live | bool
+    - _consul_primary | bool
+    - _consul_management_token | length > 0
+    - _consul_dns_token | length > 0
+  no_log: true
+
+- name: Ensure the DNS token exists
+  community.general.consul_token:
+    state: present
+    accessor_id: "{{ _consul_dns_accessor }}"
+    secret_id: "{{ _consul_dns_token }}"
+    description: "DNS token for {{ consul_datacenter }}"
+    policies:
+      - name: dns-read
+    token: "{{ _consul_management_token }}"
+    scheme: "{{ _consul_api_scheme }}"
+    host: 127.0.0.1
+    port: "{{ _consul_api_port | int }}"
+    ca_path: "{{ _consul_api_ca }}"
+  when:
+    - _consul_live | bool
+    - _consul_primary | bool
+    - _consul_management_token | length > 0
+    - _consul_dns_token | length > 0
+  no_log: true

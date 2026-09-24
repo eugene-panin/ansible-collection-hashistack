@@ -1,0 +1,11 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure dig is installed
+      ansible.builtin.apt:
+        name: dnsutils
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
