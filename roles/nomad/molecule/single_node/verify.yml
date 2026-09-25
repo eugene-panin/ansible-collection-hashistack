@@ -198,4 +198,3 @@
       until: _nomad_single_test_probe.content | default('') == 'egress=ok\nhost=ok\n'
       retries: 30
       delay: 2
-      no_log: true
