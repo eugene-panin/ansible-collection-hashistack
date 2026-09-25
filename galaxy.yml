@@ -9,6 +9,7 @@ description: >-
   Consul, Nomad and Vault with encryption, TLS and ACLs on from the first run,
   written for a cluster and usable on a single node.
 repository: https://github.com/eugene-panin/ansible-collection-hashistack
+documentation: https://github.com/eugene-panin/ansible-collection-hashistack#readme
 issues: https://github.com/eugene-panin/ansible-collection-hashistack/issues
 license:
   - MIT
