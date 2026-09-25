@@ -1,5 +1,9 @@
 # eugene_panin.hashistack
 
+[![CI](https://github.com/eugene-panin/ansible-collection-hashistack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eugene-panin/ansible-collection-hashistack/actions/workflows/ci.yml)
+[![Galaxy](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgalaxy.ansible.com%2Fapi%2Fv3%2Fplugin%2Fansible%2Fcontent%2Fpublished%2Fcollections%2Findex%2Feugene_panin%2Fhashistack%2F&query=%24.highest_version.version&label=galaxy&color=blue&cacheSeconds=3600)](https://galaxy.ansible.com/ui/repo/published/eugene_panin/hashistack/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Consul, Nomad and Vault, each with encryption, TLS and ACLs on from the first
 run. They live in one collection because they are configured against each
 other: Nomad registers its workloads in Consul and gets secrets from Vault,
