@@ -17,7 +17,7 @@ job "bridged" {
       }
 
       env {
-        HOST_API = "https://${attr.unique.network.ip-address}:4646/v1/status/leader"
+        HOST_API = "https://${NOMAD_HOST_IP_http}:4646/v1/status/leader"
       }
 
       template {
@@ -32,7 +32,7 @@ job "bridged" {
               except urllib.error.HTTPError:
                   return "ok"
               except Exception as error:
-                  return type(error).__name__
+                  return type(error).__name__ + " " + str(error)[:120] + " " + url
           def loop():
               while True:
                   out = "egress=" + probe("https://github.com/") + "\nhost=" + probe(os.environ["HOST_API"]) + "\n"
