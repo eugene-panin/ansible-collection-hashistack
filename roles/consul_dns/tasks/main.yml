@@ -10,27 +10,43 @@
       domain, and consul_dns_listen_addresses is a list.
     quiet: true
 
-- name: Load OS-specific variables
-  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', params) }}"
-  vars:
-    params:
-      files:
-        - "{{ ansible_facts['distribution'] }}-{{ ansible_facts['distribution_major_version'] }}.yml"
-        - default.yml
-      paths:
-        - "{{ role_path }}/vars"
+- name: Ask whether systemd-resolved is running
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - systemd-resolved
+  register: _consul_dns_resolved_active
+  changed_when: false
+  failed_when: false
+  check_mode: false
 
-- name: Ensure systemd-resolved is installed
-  ansible.builtin.apt:
-    name: "{{ _consul_dns_packages }}"
-    state: present
-    update_cache: true
-    cache_valid_time: 3600
-  register: _consul_dns_apt
-  until: _consul_dns_apt is succeeded
-  retries: 30
-  delay: 10
-  when: _consul_dns_packages | length > 0
+- name: Read the DNS servers resolved knows per interface
+  ansible.builtin.command:
+    argv:
+      - resolvectl
+      - dns
+  register: _consul_dns_links
+  when: _consul_dns_resolved_active.stdout == 'active'
+  changed_when: false
+  check_mode: false
+
+- name: Refuse to take over DNS that resolved does not already carry
+  ansible.builtin.assert:
+    that:
+      - _consul_dns_resolved_active.stdout == 'active'
+      - _consul_dns_upstream_links | length > 0
+    fail_msg: >-
+      systemd-resolved has to be running and know the host's upstream DNS
+      servers on an interface, as on a stock Ubuntu server, where netplan hands
+      them over. Here it does not, and routing the Consul domains through it
+      would leave every other name unresolved.
+    quiet: true
+  vars:
+    _consul_dns_upstream_links: >-
+      {{ _consul_dns_links.stdout_lines | default([])
+         | select('match', '^Link [0-9]+ [(][^)]+[)]: [^ ]')
+         | reject('search', consul_dns_server | regex_escape) | list }}
 
 - name: Ensure the resolved drop-in directory exists
   ansible.builtin.file:
@@ -48,13 +64,3 @@
     group: root
     mode: '0644'
   notify: "restart systemd-resolved"
-
-- name: Apply pending restarts before checking the resolver
-  ansible.builtin.meta: flush_handlers
-
-- name: Ensure systemd-resolved is enabled and running
-  ansible.builtin.systemd_service:
-    name: systemd-resolved
-    enabled: true
-    state: started
-  when: not ansible_check_mode or _consul_dns_packages | length == 0 or _consul_dns_apt is not changed

@@ -1,13 +1,55 @@
 ---
-- name: Prepare
+- name: Prepare a host whose DNS systemd-resolved already carries, as on Ubuntu Server
   hosts: all
   become: true
   tasks:
-    - name: Ensure ufw and dig are installed
+    - name: Read the upstream resolver the container was given
+      ansible.builtin.command:
+        argv:
+          - awk
+          - /^nameserver/ { print $2; exit }
+          - /etc/resolv.conf
+      register: _nomad_single_prepare_upstream
+      changed_when: false
+
+    - name: Ensure systemd-resolved and dig are installed
       ansible.builtin.apt:
         name:
-          - ufw
+          - systemd-resolved
           - dnsutils
+          - ufw
         state: present
         update_cache: true
         cache_valid_time: 3600
+      when: not (ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_major_version'] == '22')
+
+    - name: Ensure dig and ufw are installed
+      ansible.builtin.apt:
+        name:
+          - dnsutils
+          - ufw
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure the resolved unit drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/systemd/system/systemd-resolved.service.d
+        state: directory
+        mode: '0755'
+
+    - name: Hand the interface its upstream server whenever resolved starts, as networkd would
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          ExecStartPost=/usr/bin/resolvectl dns eth0 {{ _nomad_single_prepare_upstream.stdout }}
+          ExecStartPost=/usr/bin/resolvectl domain eth0 ~.
+        dest: /etc/systemd/system/systemd-resolved.service.d/link-dns.conf
+        mode: '0644'
+
+    - name: Ensure systemd-resolved runs with it
+      ansible.builtin.systemd_service:
+        name: systemd-resolved
+        enabled: true
+        state: restarted
+        daemon_reload: true

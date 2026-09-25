@@ -1,0 +1,51 @@
+---
+- name: Hand the role a resolved that knows no upstream server
+  hosts: all
+  become: true
+  tasks:
+    - name: Take the interface's upstream server away from resolved
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - revert
+          - eth0
+      changed_when: true
+
+    - name: Read the drop-in before the role runs
+      ansible.builtin.stat:
+        path: /etc/systemd/resolved.conf.d/consul.conf
+        get_checksum: true
+      register: _consul_dns_side_before
+
+    - name: Apply the role
+      block:
+        - name: Apply the role
+          ansible.builtin.include_role:
+            name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+
+        - name: Fail, the role should have refused
+          ansible.builtin.fail:
+            msg: consul_dns took over a resolved that knew no upstream server
+      rescue:
+        - name: Assert it refused before changing anything
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name == 'Refuse to take over DNS that resolved does not already carry'
+            quiet: true
+
+    - name: Read the drop-in after the role refused
+      ansible.builtin.stat:
+        path: /etc/systemd/resolved.conf.d/consul.conf
+        get_checksum: true
+      register: _consul_dns_side_after
+
+    - name: Assert the drop-in is untouched
+      ansible.builtin.assert:
+        that:
+          - _consul_dns_side_after.stat.checksum == _consul_dns_side_before.stat.checksum
+        quiet: true
+
+    - name: Give resolved its upstream server back
+      ansible.builtin.systemd_service:
+        name: systemd-resolved
+        state: restarted

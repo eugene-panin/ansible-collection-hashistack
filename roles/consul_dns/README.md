@@ -34,19 +34,28 @@ keep going to the servers the interfaces have. Each extra address becomes a
 `DNSStubListenerExtra`; the address does not have to exist when resolved
 starts, so a WireGuard interface that comes up later is fine.
 
-The role installs systemd-resolved where it is a separate package. It does not
-touch `/etc/resolv.conf`; programs that read it, rather than asking resolved,
-see Consul names only if it points at resolved's stub, as it does on a stock
-Ubuntu server.
+## What the host needs
+
+systemd-resolved has to be the host's resolver already, and know the upstream
+servers on an interface, as on a stock Ubuntu server, where netplan hands them
+over. The role checks this first and stops without changing anything if it
+does not hold: it does not install resolved or take DNS over. On a host where
+resolved only mirrors `/etc/resolv.conf`, as on a stock Debian with ifupdown,
+the Consul server would replace the upstream ones and every other name would
+stop resolving. On Debian, move the network to systemd-networkd or
+NetworkManager first.
 
 With ACLs on and `default_policy` deny, Consul answers DNS only with a DNS
 token; the `consul` role creates one when it can mint it or is given one.
 
 ## Tested
 
-The scenario runs the `consul` role with ACLs and an `alt_domain`, then this
-role with an extra address that is brought up only after resolved has
-started. It resolves Consul by both domains on the stub address and on the
+The scenario prepares a host whose resolved gets its upstream server on the
+interface, as networkd would. It runs the `consul` role with ACLs and an
+`alt_domain`, then this role with an extra address that is brought up only
+after resolved has started. After the idempotence and check runs, it takes
+the upstream server away from resolved and checks that the role refuses and
+leaves its drop-in untouched. It resolves Consul by both domains on the stub address and on the
 extra one, checks that resolved holds the Consul domains as routing-only, and
 that a public name still resolves through the interface's own DNS server.
 Without the routing-only domains names still resolve, since resolved asks

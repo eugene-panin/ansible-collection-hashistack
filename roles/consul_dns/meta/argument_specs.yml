@@ -5,6 +5,9 @@ argument_specs:
     description:
       - Sends queries for the Consul domains to the Consul DNS interface and
         everything else where it went before, with a systemd-resolved drop-in.
+      - systemd-resolved has to be running and know the upstream servers on an
+        interface already. The role checks that and stops otherwise; it does
+        not install resolved.
       - Optionally serves the same resolver on extra addresses, such as the
         WireGuard address, for the clients behind it.
     options:

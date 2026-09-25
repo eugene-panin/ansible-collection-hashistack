@@ -32,7 +32,7 @@ jobs:
         run: python -m pip install --upgrade ansible-core ansible-lint yamllint
 
       - name: Install the collections the roles and tests call
-        run: ansible-galaxy collection install community.crypto community.general
+        run: ansible-galaxy collection install community.crypto community.general .
 
       - name: yamllint
         run: yamllint .

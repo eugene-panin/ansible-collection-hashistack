@@ -14,7 +14,8 @@ gossip keys across all three.
 
 ## A single node, end to end
 
-`playbooks/single_node.yml` turns one fresh Ubuntu or Debian server into a
+`playbooks/single_node.yml` turns one fresh Ubuntu server, or a Debian one
+whose DNS systemd-resolved already carries, into a
 Nomad host that is managed and used only through WireGuard: WireGuard and
 its client configurations, Consul with names under a domain of your own,
 Vault, Docker and Nomad wired to Consul and Vault, with bridge networking.

@@ -13,9 +13,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   inventory on the first run. The new `single_node` scenario runs the playbook
   against the example inventory itself.
 
+### Fixed
+
+- `consul_dns` broke every name outside the Consul domains on a host where
+  systemd-resolved was not already the resolver, such as a stock Debian 12:
+  it installed resolved, whose NSS module then asked it, and its drop-in
+  replaced the upstream servers resolved had copied from `/etc/resolv.conf`
+  with Consul. The role no longer installs resolved; it checks that resolved
+  runs and knows the upstream servers on an interface, and stops otherwise.
+  The 0.4.0 test gave the interface a DNS server itself before checking a
+  public name and missed it; the `single_node` playbook found it on Debian.
+
 ### Changed
 
-- Depends on `eugene_panin.base` >= 0.3.3, for WireGuard and Docker.
+- Depends on `eugene_panin.base` >= 0.3.4, for WireGuard and Docker.
+- CI lint installs the collection itself, as the example playbook's import
+  needs it.
 
 ## [0.4.0] - 2026-09-25
 

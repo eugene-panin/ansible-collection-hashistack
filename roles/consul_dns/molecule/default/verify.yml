@@ -56,24 +56,6 @@
       loop_control:
         label: "{{ item.name }} at {{ item.server }}"
 
-    - name: Read the upstream resolver the container was given
-      ansible.builtin.command:
-        argv:
-          - awk
-          - /^nameserver/ { print $2; exit }
-          - /etc/resolv.conf
-      register: _consul_dns_test_upstream
-      changed_when: false
-
-    - name: Give the interface its own DNS server, as DHCP would on a real host
-      ansible.builtin.command:
-        argv:
-          - resolvectl
-          - dns
-          - eth0
-          - "{{ _consul_dns_test_upstream.stdout }}"
-      changed_when: true
-
     - name: Ask resolved for a name outside the Consul domains
       ansible.builtin.command:
         argv:
