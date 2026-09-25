@@ -27,6 +27,9 @@ nomad_acl: true
 nomad_acl_bootstrap_token: ""
 nomad_acl_token_path: ""
 
+nomad_network_interface: ""
+nomad_host_networks: []
+
 nomad_cni: false
 nomad_cni_version: 1.9.1
 

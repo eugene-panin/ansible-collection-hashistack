@@ -111,6 +111,22 @@ argument_specs:
         type: str
         default: ""
         description: Controller file the bootstrap token is minted into when not given.
+      nomad_network_interface:
+        type: str
+        default: ""
+        description:
+          - Interface the client allocates job ports on, such as C(wg0). Empty
+            leaves Nomad's choice, the interface of the default route, which on
+            a server is usually the public one.
+      nomad_host_networks:
+        type: list
+        elements: dict
+        default: []
+        description:
+          - Named host networks a job can ask for with C(host_network) on a
+            port, in Nomad's own shape, one name per item; see the README.
+          - With O(nomad_network_interface) on a private interface, a job gets
+            a port on the public one only when it names that network.
       nomad_cni:
         type: bool
         default: false

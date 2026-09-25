@@ -3,7 +3,6 @@ profile: production
 exclude_paths:
   - .cache/
   - .github/
-  - roles/nomad/molecule/single_node/host_vars/
 skip_list: []
 warn_list:
   - experimental

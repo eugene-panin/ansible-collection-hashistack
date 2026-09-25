@@ -25,7 +25,9 @@ degenerate case of a cluster, and growing it is an inventory change.
 |---|---|---|
 | CA certificate and key | `nomad_pki_ca_cert`, `nomad_pki_ca_key` | into `nomad_pki_dir` on the controller |
 | Bootstrap token | `nomad_acl_bootstrap_token` | into `nomad_acl_token_path` on the controller |
-| Gossip keys | `nomad_gossip_keys` | one, on the first server, shared with the rest |
+| Gossip keys | `nomad_network_interface` | `""` | Interface job ports land on by default |
+| `nomad_host_networks` | `[]` | Named networks a job can ask for, such as a public one |
+| `nomad_gossip_keys` | one, on the first server, shared with the rest |
 
 The bootstrap token is minted before Nomad sees it and passed as the bootstrap
 secret, so no secret depends on parsing a reply. Each run checks that the
@@ -62,6 +64,35 @@ gets 403.
 The certificate names `server.<region>.nomad` and `client.<region>.nomad` as
 the node's roles require, and is issued by the `tls_certificate` role: the key
 is generated on the node, the controller signs it.
+
+## Which address job ports land on
+
+Left alone, a Nomad client gives job ports the address of the interface with
+the default route, which on a server is the public one, and Docker publishes
+them there past ufw. `nomad_network_interface` moves that default to a
+private interface, such as WireGuard's. A job that should be public, such as
+a reverse proxy or a mail server, asks for a named host network instead:
+
+```yaml
+nomad_network_interface: wg0
+nomad_host_networks:
+  - public:
+      interface: eth0
+```
+
+```hcl
+network {
+  port "https" {
+    static       = 443
+    host_network = "public"
+  }
+}
+```
+
+Only a job that names `public` gets a port on eth0. The `networks` scenario
+gives the node a private interface next to eth0, runs one group without a
+host network and one with `public`, checks each got its port on the address
+it should, and reaches the public one there.
 
 ## Bridge networking
 

@@ -112,6 +112,10 @@
         label: "{{ item.name }}"
       when: not ansible_check_mode or wireguard_public_key is defined
 
+    - name: Deny incoming except SSH, WireGuard and the declared ports
+      ansible.builtin.include_role:
+        name: eugene_panin.base.firewall
+
     - name: Check whether Consul is installed yet
       ansible.builtin.stat:
         path: "{{ consul_bin_dir | default('/usr/local/bin') }}/consul"

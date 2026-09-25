@@ -3,6 +3,25 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-09-25
+
+### Added
+
+- `nomad`: `nomad_network_interface`, the interface job ports land on by
+  default, and `nomad_host_networks`, named networks a job asks for by name,
+  such as a public one for a reverse proxy. The new `networks` scenario checks
+  each job gets its port on the address it should.
+- `single_node`: the playbook turns on ufw through the `firewall` role of
+  `eugene_panin.base`, denying incoming but SSH, WireGuard and whatever
+  `firewall_allow` lists; the example sets `nomad_network_interface` rather
+  than passing it through `nomad_extra_config`. The scenario runs a job in
+  bridge mode behind the firewall and checks it answers on its mapped port
+  and reaches both the internet and the host's API from inside its bridge.
+
+### Changed
+
+- Depends on `eugene_panin.base` >= 0.4.0, for the `firewall` role.
+
 ## [0.5.0] - 2026-09-25
 
 ### Added

@@ -107,3 +107,95 @@
             | map(attribute='Address') | list == [single_node_address]
           - "'DNS = ' ~ single_node_address in _nomad_single_test_client.content | b64decode"
         quiet: true
+
+    - name: Read the firewall state
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: _nomad_single_test_ufw
+      changed_when: false
+
+    - name: Assert the firewall is on and denies incoming by default
+      ansible.builtin.assert:
+        that:
+          - "'Status: active' in _nomad_single_test_ufw.stdout"
+          - _nomad_single_test_ufw.stdout is search('Default. deny \\(incoming\\)')
+        quiet: true
+
+    - name: Parse a job in bridge mode
+      ansible.builtin.uri:
+        url: "{{ _nomad_single_test_nomad }}/v1/jobs/parse"
+        method: POST
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_single_test_nomad_token }}"
+        body_format: json
+        body:
+          JobHCL: "{{ lookup('ansible.builtin.file', 'files/bridged.nomad.hcl') }}"
+          Canonicalize: true
+        return_content: true
+      register: _nomad_single_test_job
+      no_log: true
+
+    - name: Run it behind the firewall
+      ansible.builtin.uri:
+        url: "{{ _nomad_single_test_nomad }}/v1/jobs"
+        method: POST
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_single_test_nomad_token }}"
+        body_format: json
+        body:
+          Job: "{{ _nomad_single_test_job.json }}"
+      no_log: true
+
+    - name: Wait for it to run
+      ansible.builtin.uri:
+        url: "{{ _nomad_single_test_nomad }}/v1/job/bridged/allocations"
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_single_test_nomad_token }}"
+        return_content: true
+      register: _nomad_single_test_allocs
+      until: _nomad_single_test_allocs.json | default([]) | selectattr('ClientStatus', 'equalto', 'running') | list | length == 1
+      retries: 45
+      delay: 2
+      no_log: true
+
+    - name: Read the allocation's port
+      ansible.builtin.uri:
+        url: "{{ _nomad_single_test_nomad }}/v1/allocation/{{ _nomad_single_test_running.ID }}"
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_single_test_nomad_token }}"
+        return_content: true
+      vars:
+        _nomad_single_test_running: "{{ _nomad_single_test_allocs.json | selectattr('ClientStatus', 'equalto', 'running') | first }}"
+      register: _nomad_single_test_alloc
+      no_log: true
+
+    - name: Reach the job through the port the bridge maps on the tunnel address
+      ansible.builtin.uri:
+        url: "http://{{ _nomad_single_test_port.HostIP }}:{{ _nomad_single_test_port.Value }}/"
+      vars:
+        _nomad_single_test_port: "{{ _nomad_single_test_alloc.json.AllocatedResources.Shared.Ports | first }}"
+      register: _nomad_single_test_bridged
+      until: _nomad_single_test_bridged.status | default(0) == 200
+      retries: 15
+      delay: 2
+
+    - name: Wait for the job to reach the internet and the host from inside its bridge
+      ansible.builtin.uri:
+        url: "{{ _nomad_single_test_nomad }}/v1/client/fs/cat/{{ _nomad_single_test_alloc.json.ID }}?path=alloc/data/probe.txt"
+        ca_path: "{{ _nomad_single_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_single_test_nomad_token }}"
+        return_content: true
+        status_code: [200, 404, 500]
+      register: _nomad_single_test_probe
+      until: _nomad_single_test_probe.content | default('') == 'egress=ok\nhost=ok\n'
+      retries: 30
+      delay: 2
+      no_log: true

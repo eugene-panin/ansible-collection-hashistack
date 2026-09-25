@@ -30,7 +30,9 @@ _nomad_server_config: >-
 
 _nomad_client_config: >-
   {{ {'enabled': true}
-     | combine({'servers': nomad_retry_join} if nomad_retry_join | length > 0 and not nomad_server | bool else {}) }}
+     | combine({'servers': nomad_retry_join} if nomad_retry_join | length > 0 and not nomad_server | bool else {})
+     | combine({'network_interface': nomad_network_interface} if nomad_network_interface | length > 0 else {})
+     | combine({'host_network': nomad_host_networks} if nomad_host_networks | length > 0 else {}) }}
 
 _nomad_cni_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
 _nomad_cni_asset: "cni-plugins-linux-{{ _nomad_cni_arch }}-v{{ nomad_cni_version }}.tgz"

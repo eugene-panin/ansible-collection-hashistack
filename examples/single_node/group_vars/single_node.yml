@@ -30,6 +30,10 @@ wireguard_client_routes: 10.77.0.0/24
 wireguard_client_dns:
   - "{{ single_node_address }}"
 
+firewall_allow:
+  - interface: nomad
+    comment: Nomad bridge, jobs reaching Consul, Vault and Nomad on the host
+
 consul_server: true
 consul_bind_address: "{{ single_node_address }}"
 consul_alt_domain: "{{ single_node_domain }}"
@@ -58,7 +62,4 @@ nomad_consul_ca_cert: "{{ single_node_ca_cert_pem }}"
 nomad_consul_token: "{{ single_node_nomad_consul_token_value }}"
 nomad_vault_address: "https://{{ single_node_address }}:8200"
 nomad_vault_ca_cert: "{{ single_node_ca_cert_pem }}"
-single_node_nomad_extra_config: {}
-nomad_extra_config: >-
-  {{ {'client': {'network_interface': wireguard_interface}}
-     | combine(single_node_nomad_extra_config, recursive=True) }}
+nomad_network_interface: "{{ wireguard_interface }}"

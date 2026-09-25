@@ -38,6 +38,10 @@ devices, and move the rest into your secret store; each of them can then be
 given back as a value (`single_node_ca_cert`, `consul_acl_bootstrap_token`,
 `vault_unseal_keys` and so on) instead of being read from the directory.
 
+ufw denies everything incoming but SSH and WireGuard. To publish a job, list
+its port in `firewall_allow` and give the job a port on a public host network,
+as the `nomad` role's README shows.
+
 Every choice the playbook makes is a variable in
 `examples/single_node/group_vars/single_node.yml`, not in the playbook, so
 any role variable can be changed there. Two of them keep the node private:

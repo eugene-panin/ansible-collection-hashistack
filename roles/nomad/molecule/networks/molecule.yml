@@ -1,0 +1,56 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/networks/requirements.yml
+driver:
+  name: docker
+platforms:
+  - name: instance-nomad-networks
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      callback_result_format: yaml
+  inventory:
+    group_vars:
+      all:
+        nomad_bind_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+        nomad_pki_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pki"
+        nomad_acl_token_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tokens/nomad-bootstrap.token"
+        nomad_network_interface: private0
+        nomad_host_networks:
+          - public:
+              interface: eth0
+        nomad_extra_config:
+          client:
+            cpu_total_compute: 2000
+          plugin:
+            raw_exec:
+              config:
+                enabled: true
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - check
+    - converge
+    - idempotence
+    - check
+    - verify
+    - destroy

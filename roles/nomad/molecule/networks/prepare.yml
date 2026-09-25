@@ -1,0 +1,14 @@
+---
+- name: Give the node a private interface next to the public one, as WireGuard would
+  hosts: all
+  become: true
+  tasks:
+    - name: Bring up the private interface
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          ip link show private0 >/dev/null 2>&1 || ip link add private0 type dummy;
+          ip address replace 10.88.0.1/24 dev private0;
+          ip link set private0 up
+        executable: /bin/bash
+      changed_when: true

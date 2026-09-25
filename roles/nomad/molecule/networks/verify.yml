@@ -1,0 +1,87 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    _nomad_test_api: "https://{{ nomad_bind_address }}:4646"
+    _nomad_test_ca: /etc/nomad.d/tls/ca.pem
+    _nomad_test_token: "{{ lookup('ansible.builtin.file', nomad_acl_token_path) }}"
+    _nomad_test_public: "{{ ansible_facts['eth0']['ipv4']['address'] }}"
+  tasks:
+    - name: Parse the job
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/jobs/parse"
+        method: POST
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_token }}"
+        body_format: json
+        body:
+          JobHCL: "{{ lookup('ansible.builtin.file', 'files/listen.nomad.hcl') }}"
+          Canonicalize: true
+        return_content: true
+      register: _nomad_test_job
+      no_log: true
+
+    - name: Run the job
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/jobs"
+        method: POST
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_token }}"
+        body_format: json
+        body:
+          Job: "{{ _nomad_test_job.json }}"
+      no_log: true
+
+    - name: Wait for both groups to run
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/job/listen/allocations"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_token }}"
+        return_content: true
+      register: _nomad_test_allocs
+      until: _nomad_test_allocs.json | default([]) | selectattr('ClientStatus', 'equalto', 'running') | list | length == 2
+      retries: 45
+      delay: 2
+      no_log: true
+
+    - name: Read where each group was given its port
+      ansible.builtin.uri:
+        url: "{{ _nomad_test_api }}/v1/allocation/{{ item.ID }}"
+        ca_path: "{{ _nomad_test_ca }}"
+        headers:
+          X-Nomad-Token: "{{ _nomad_test_token }}"
+        return_content: true
+      loop: "{{ _nomad_test_allocs.json | selectattr('ClientStatus', 'equalto', 'running') | list }}"
+      loop_control:
+        label: "{{ item.TaskGroup }}"
+      register: _nomad_test_alloc_details
+      no_log: true
+
+    - name: Note each group's address
+      ansible.builtin.set_fact:
+        _nomad_test_ports: >-
+          {{ _nomad_test_ports | default({})
+             | combine({item.json.TaskGroup: item.json.AllocatedResources.Shared.Ports | first}) }}
+      loop: "{{ _nomad_test_alloc_details.results }}"
+      loop_control:
+        label: "{{ item.json.TaskGroup }}"
+
+    - name: Assert a job gets the private interface unless it names the public network
+      ansible.builtin.assert:
+        that:
+          - _nomad_test_ports.private.HostIP == '10.88.0.1'
+          - _nomad_test_ports.public.HostIP == _nomad_test_public
+        quiet: true
+
+    - name: Reach the public group on the public address
+      ansible.builtin.uri:
+        url: "http://{{ _nomad_test_public }}:{{ _nomad_test_ports.public.Value }}/"
+      register: _nomad_test_public_http
+      until: _nomad_test_public_http.status | default(0) == 200
+      retries: 15
+      delay: 2
