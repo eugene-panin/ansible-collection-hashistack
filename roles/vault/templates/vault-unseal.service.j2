@@ -1,0 +1,14 @@
+{{ ansible_managed | comment }}
+[Unit]
+Description=Unseal Vault with the keys on this node
+After=vault.service
+BindsTo=vault.service
+ConditionFileNotEmpty={{ _vault_unseal_keys_file }}
+
+[Service]
+Type=oneshot
+ExecStart={{ _vault_unseal_script }}
+TimeoutStartSec=330
+
+[Install]
+WantedBy=vault.service

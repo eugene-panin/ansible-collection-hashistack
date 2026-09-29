@@ -3,6 +3,17 @@
 All notable changes to this collection are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [0.7.0] - 2026-09-29
+
+### Added
+
+- `vault`: `vault_auto_unseal` keeps the unseal keys on each node, readable by
+  root only, and a unit unseals Vault whenever it starts, so a reboot no
+  longer leaves the platform down until the next run. Off by default; turning
+  it off removes the keys. Scenario `auto_unseal`.
+
 ## [0.6.0] - 2026-09-25
 
 ### Added

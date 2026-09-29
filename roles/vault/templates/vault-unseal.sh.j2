@@ -1,0 +1,35 @@
+#!/bin/sh
+{{ ansible_managed | comment }}
+set -eu
+
+addr={{ _vault_api_addr }}
+ca={{ _vault_ca_file }}
+keys={{ _vault_unseal_keys_file }}
+
+tries=0
+until state=$(curl -sS --cacert "$ca" "$addr/v1/sys/seal-status" 2>/dev/null); do
+  tries=$((tries + 1))
+  if [ "$tries" -ge 150 ]; then
+    echo "Vault does not answer at $addr" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+case $state in
+  *'"sealed":false'*) exit 0 ;;
+esac
+
+while IFS= read -r key; do
+  [ -n "$key" ] || continue
+  state=$(printf '{"key":"%s"}' "$key" | curl -sS --cacert "$ca" -X PUT --data @- "$addr/v1/sys/unseal")
+  case $state in
+    *'"sealed":false'*)
+      echo "Vault is unsealed"
+      exit 0
+      ;;
+  esac
+done <"$keys"
+
+echo "Vault is still sealed: the keys in $keys are not enough" >&2
+exit 1

@@ -55,3 +55,7 @@
 - name: Initialise and unseal
   ansible.builtin.include_tasks: unseal.yml
   tags: [vault, unseal]
+
+- name: Unseal on start, or not
+  ansible.builtin.include_tasks: auto_unseal.yml
+  tags: [vault, unseal]

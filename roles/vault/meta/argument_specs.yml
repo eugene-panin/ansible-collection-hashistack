@@ -108,6 +108,15 @@ argument_specs:
         elements: str
         default: []
         description: Unseal keys as values, from any secret store.
+      vault_auto_unseal:
+        type: bool
+        default: false
+        description:
+          - Keeps the unseal keys on each node, readable by root only, and
+            installs a unit that unseals Vault whenever it starts, after a
+            restart or a reboot.
+          - Anyone who reads the disk of a node holds the cluster. False
+            removes the keys, the script and the unit.
       vault_extra_config:
         type: dict
         default: {}

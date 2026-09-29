@@ -40,9 +40,17 @@ would lose that cluster's keys.
 
 Vault seals itself every time it starts: after a restart, an upgrade, a
 reboot. The role treats unsealed as the desired state, so any run unseals it
-with the keys it has. Nothing unseals it between runs. A reboot leaves Vault
-sealed until someone runs the play again, or until you configure auto-unseal
-with a KMS or another Vault through `vault_extra_config`.
+with the keys it has. Between runs, a reboot leaves Vault sealed until someone
+runs the play again, unless:
+
+- `vault_auto_unseal: true` keeps the unseal keys on each node in
+  `/etc/vault.d/unseal-keys`, readable by root only, and installs
+  `vault-unseal.service`, which runs every time `vault.service` starts and
+  unseals it through the API. The platform comes back by itself after a
+  reboot; in exchange, whoever reads the disk of a node holds the cluster.
+  Turning it off removes the keys, the script and the unit.
+- Vault's own auto-unseal with a KMS or another Vault, configured through
+  `vault_extra_config`.
 
 The keys the role unseals with are the ones in the controller file or in
 `vault_unseal_keys`, as many as the threshold asks for. Keeping them in the

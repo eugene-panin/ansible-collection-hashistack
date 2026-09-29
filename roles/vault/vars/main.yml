@@ -42,3 +42,7 @@ _vault_base_config:
         tls_min_version: tls12
 
 _vault_config: "{{ _vault_base_config | combine(vault_extra_config, recursive=True) }}"
+
+_vault_unseal_keys_file: "{{ vault_config_dir }}/unseal-keys"
+_vault_unseal_script: "{{ vault_bin_dir }}/vault-unseal"
+_vault_unseal_unit: /etc/systemd/system/vault-unseal.service

@@ -1,0 +1,58 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Read the keys on the node
+      ansible.builtin.stat:
+        path: /etc/vault.d/unseal-keys
+      register: _vault_test_keys
+
+    - name: Assert only root reads them
+      ansible.builtin.assert:
+        that:
+          - _vault_test_keys.stat.exists
+          - _vault_test_keys.stat.pw_name == 'root'
+          - _vault_test_keys.stat.mode == '0400'
+        quiet: true
+
+    - name: Read the keys the role initialised Vault with
+      ansible.builtin.set_fact:
+        _vault_test_init_keys: "{{ (lookup('ansible.builtin.file', vault_init_output_path) | from_json).keys_base64 }}"
+      no_log: true
+
+    - name: Read the keys on the node
+      ansible.builtin.slurp:
+        src: /etc/vault.d/unseal-keys
+      register: _vault_test_node_keys
+      no_log: true
+
+    - name: Assert the node holds those keys
+      ansible.builtin.assert:
+        that:
+          - (_vault_test_node_keys.content | b64decode).split() == _vault_test_init_keys
+        quiet: true
+      no_log: true
+
+    - name: Read the units
+      ansible.builtin.service_facts:
+
+    - name: Assert the unit runs with Vault
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['vault-unseal.service'].status == 'enabled'
+        quiet: true
+
+    - name: Read the seal state
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        ca_path: /etc/vault.d/tls/ca.pem
+        return_content: true
+      register: _vault_test_state
+
+    - name: Assert Vault is unsealed
+      ansible.builtin.assert:
+        that:
+          - not _vault_test_state.json.sealed
+        quiet: true

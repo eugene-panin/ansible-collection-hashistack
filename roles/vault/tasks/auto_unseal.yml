@@ -1,0 +1,64 @@
+---
+- name: Ensure curl is installed, which the unseal script calls the API with
+  ansible.builtin.package:
+    name: curl
+    state: present
+  when: vault_auto_unseal | bool
+
+- name: Keep the unseal keys on the node, readable by root only
+  ansible.builtin.copy:
+    dest: "{{ _vault_unseal_keys_file }}"
+    content: "{{ _vault_unseal_keys_effective | join('\n') }}\n"
+    owner: root
+    group: root
+    mode: '0400'
+  when:
+    - vault_auto_unseal | bool
+    - _vault_unseal_keys_effective | length > 0
+  no_log: true
+
+- name: Install the script that unseals Vault with them
+  ansible.builtin.template:
+    src: vault-unseal.sh.j2
+    dest: "{{ _vault_unseal_script }}"
+    owner: root
+    group: root
+    mode: '0700'
+  when: vault_auto_unseal | bool
+
+- name: Install the unit that runs it whenever Vault starts
+  ansible.builtin.template:
+    src: vault-unseal.service.j2
+    dest: "{{ _vault_unseal_unit }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when: vault_auto_unseal | bool
+  notify: "reload systemd"
+
+- name: Read whether the unit is installed
+  ansible.builtin.stat:
+    path: "{{ _vault_unseal_unit }}"
+  register: _vault_unseal_unit_stat
+
+- name: Apply the unit change before enabling it
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure the unit runs with Vault, or not
+  ansible.builtin.systemd_service:
+    name: vault-unseal
+    enabled: "{{ vault_auto_unseal | bool }}"
+  when:
+    - _vault_live | bool
+    - _vault_unseal_unit_stat.stat.exists
+
+- name: Remove the keys, the script and the unit when Vault is not to unseal itself
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ _vault_unseal_keys_file }}"
+    - "{{ _vault_unseal_script }}"
+    - "{{ _vault_unseal_unit }}"
+  when: not vault_auto_unseal | bool
+  notify: "reload systemd"

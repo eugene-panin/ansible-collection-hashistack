@@ -1,0 +1,102 @@
+---
+- name: Restart and start Vault, which unseals itself
+  hosts: all
+  become: true
+  tasks:
+    - name: Restart the service
+      ansible.builtin.systemd_service:
+        name: vault
+        state: restarted
+
+    - name: Wait until Vault is unsealed, without the role
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        ca_path: /etc/vault.d/tls/ca.pem
+        return_content: true
+      register: _vault_test_restarted
+      until: not (_vault_test_restarted.json.sealed | default(true))
+      retries: 30
+      delay: 2
+
+    - name: Stop the service, as a shutdown does
+      ansible.builtin.systemd_service:
+        name: vault
+        state: stopped
+
+    - name: Start the service, as a boot does
+      ansible.builtin.systemd_service:
+        name: vault
+        state: started
+
+    - name: Wait until Vault is unsealed after the start
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        ca_path: /etc/vault.d/tls/ca.pem
+        return_content: true
+      register: _vault_test_started
+      until: not (_vault_test_started.json.sealed | default(true))
+      retries: 30
+      delay: 2
+
+- name: Turn auto-unseal off
+  hosts: all
+  become: true
+  vars:
+    vault_auto_unseal: false
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Read what is left of it
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/vault.d/unseal-keys
+        - /usr/local/bin/vault-unseal
+        - /etc/systemd/system/vault-unseal.service
+      register: _vault_test_left
+
+    - name: Assert the keys, the script and the unit are gone
+      ansible.builtin.assert:
+        that:
+          - _vault_test_left.results | selectattr('stat.exists') | list | length == 0
+        quiet: true
+
+    - name: Restart the service
+      ansible.builtin.systemd_service:
+        name: vault
+        state: restarted
+
+    - name: Read the seal state once the API answers
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        ca_path: /etc/vault.d/tls/ca.pem
+        return_content: true
+      register: _vault_test_off
+      until: _vault_test_off.status | default(0) == 200
+      retries: 30
+      delay: 2
+
+    - name: Give a unit that should not be there time to unseal
+      ansible.builtin.wait_for:
+        timeout: 10
+
+    - name: Read the seal state again
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        ca_path: /etc/vault.d/tls/ca.pem
+        return_content: true
+      register: _vault_test_off_later
+
+    - name: Assert Vault stayed sealed
+      ansible.builtin.assert:
+        that:
+          - _vault_test_off_later.json.sealed
+        quiet: true
+
+- name: Turn auto-unseal on again
+  hosts: all
+  become: true
+  vars:
+    vault_auto_unseal: true
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
