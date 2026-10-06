@@ -14,6 +14,21 @@
       become: false
       no_log: true
 
+    - name: Read how long ago the certificate of the agent began
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          echo $(( $(date +%s) - $(date -d "$(openssl x509 -in /etc/consul.d/tls/agent.pem -noout -startdate | cut -d= -f2)" +%s) ))
+        executable: /bin/bash
+      register: _consul_verify_age
+      changed_when: false
+
+    - name: Assert the certificate began an hour back, for a node whose clock is behind the controller's
+      ansible.builtin.assert:
+        that: _consul_verify_age.stdout | int >= 3000
+        fail_msg: "the certificate began {{ _consul_verify_age.stdout }} seconds ago"
+        quiet: true
+
     - name: Ask the running agent which version it is
       ansible.builtin.uri:
         url: https://127.0.0.1:8501/v1/agent/self

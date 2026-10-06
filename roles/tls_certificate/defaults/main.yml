@@ -16,3 +16,4 @@ tls_certificate_extended_key_usage:
   - serverAuth
   - clientAuth
 tls_certificate_days: 825
+tls_certificate_backdate: 1h

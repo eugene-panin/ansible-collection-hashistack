@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-06
+
+### Fixed
+
+- `tls_certificate`: certificates begin an hour back (`tls_certificate_backdate`).
+  They are signed on the controller, and a node whose clock was behind by
+  seconds refused its own new certificate until it caught up, failing the
+  run right after a CA rotation.
+
 ## [0.7.0] - 2026-09-29
 
 ### Added

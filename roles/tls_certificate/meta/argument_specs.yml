@@ -71,3 +71,10 @@ argument_specs:
         type: int
         default: 825
         description: Lifetime of the node certificate, in days.
+      tls_certificate_backdate:
+        type: str
+        default: 1h
+        description:
+          - How long before now the certificates begin, as 30m, 1h or 1d.
+          - They are signed on the controller; a node whose clock is behind
+            would otherwise refuse its own certificate until it catches up.

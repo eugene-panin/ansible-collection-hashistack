@@ -81,6 +81,7 @@
     privatekey_path: "{{ _tls_certificate_ca_key_file }}"
     csr_content: "{{ _tls_certificate_ca_csr.csr }}"
     provider: selfsigned
+    selfsigned_not_before: "-{{ tls_certificate_backdate }}"
     selfsigned_not_after: "+{{ tls_certificate_ca_days }}d"
     mode: '0644'
   when:
@@ -157,6 +158,7 @@
     provider: ownca
     ownca_content: "{{ _tls_certificate_ca_cert_pem }}"
     ownca_privatekey_content: "{{ _tls_certificate_ca_key_pem }}"
+    ownca_not_before: "-{{ tls_certificate_backdate }}"
     ownca_not_after: "+{{ tls_certificate_days }}d"
   register: _tls_certificate_signed
   when:
