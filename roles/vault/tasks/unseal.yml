@@ -18,6 +18,14 @@
   run_once: true
   check_mode: false
 
+- name: Restore the snapshot into a new cluster
+  ansible.builtin.include_tasks: restore.yml
+  when:
+    - vault_restore_snapshot | length > 0
+    - _vault_live | bool
+    - _vault_primary | bool
+    - not _vault_init_status.json.initialized
+
 - name: Refuse to initialise over the output of another initialisation
   ansible.builtin.assert:
     that:
@@ -33,6 +41,7 @@
     - _vault_live | bool
     - _vault_primary | bool
     - not _vault_init_status.json.initialized
+    - vault_restore_snapshot | length == 0
 
 - name: Ensure the init output directory exists on the controller
   ansible.builtin.file:
@@ -43,6 +52,7 @@
     - _vault_live | bool
     - _vault_primary | bool
     - not _vault_init_status.json.initialized
+    - vault_restore_snapshot | length == 0
   delegate_to: localhost
   become: false
   run_once: true
@@ -62,6 +72,7 @@
     - _vault_live | bool
     - _vault_primary | bool
     - not _vault_init_status.json.initialized
+    - vault_restore_snapshot | length == 0
   changed_when: true
   no_log: true
 

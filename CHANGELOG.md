@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-07
+
+### Added
+
+- `vault`: `vault_restore_snapshot` restores a raft snapshot into a Vault
+  that is not initialised yet, such as on a new server that replaces a lost
+  one, and unseals it with the keys of the cluster the snapshot is of. The
+  `restore` scenario covers it.
+
 ## [0.7.1] - 2026-10-06
 
 ### Fixed

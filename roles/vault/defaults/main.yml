@@ -25,5 +25,6 @@ vault_init_key_threshold: 3
 vault_init_output_path: ""
 vault_unseal_keys: []
 vault_auto_unseal: false
+vault_restore_snapshot: ""
 
 vault_extra_config: {}

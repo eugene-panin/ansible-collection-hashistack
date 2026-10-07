@@ -6,10 +6,12 @@
       - vault_init_key_threshold | int <= vault_init_key_shares | int
       - vault_pki_dir | length > 0 or (vault_pki_ca_cert | length > 0 and vault_pki_ca_key | length > 0)
       - vault_init_output_path | length > 0 or vault_unseal_keys | length > 0
+      - vault_restore_snapshot | length == 0 or vault_unseal_keys | length > 0
     fail_msg: >-
       vault_bind_address is required. The CA comes from vault_pki_dir or from
       vault_pki_ca_cert with vault_pki_ca_key. Unseal keys come from
-      vault_unseal_keys or from the file at vault_init_output_path.
+      vault_unseal_keys or from the file at vault_init_output_path; a restore
+      needs vault_unseal_keys, the keys of the cluster the snapshot is of.
     quiet: true
 
 - name: Install

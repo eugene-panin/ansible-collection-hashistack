@@ -1,0 +1,11 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    vault_restore_snapshot: /root/source.snap
+    vault_auto_unseal: true
+    vault_unseal_keys: "{{ (lookup('ansible.builtin.file', vault_init_output_path) | from_json).keys_base64 }}"
+    vault_init_output_path: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/vault/init.json"
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

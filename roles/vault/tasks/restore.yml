@@ -1,0 +1,62 @@
+---
+- name: Initialise Vault with one key and a token of its own, which the snapshot replaces
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/init"
+    method: PUT
+    ca_path: "{{ _vault_ca_file }}"
+    body_format: json
+    body:
+      secret_shares: 1
+      secret_threshold: 1
+    return_content: true
+  register: _vault_restore_init
+  changed_when: true
+  no_log: true
+
+- name: Unseal Vault with that key
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/unseal"
+    method: PUT
+    ca_path: "{{ _vault_ca_file }}"
+    body_format: json
+    body:
+      key: "{{ _vault_restore_init.json.keys_base64[0] }}"
+  changed_when: true
+  no_log: true
+
+- name: Wait until Vault is active
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/health"
+    ca_path: "{{ _vault_ca_file }}"
+  register: _vault_restore_active
+  until: _vault_restore_active.status | default(0) == 200
+  retries: 30
+  delay: 2
+
+- name: Restore the snapshot, which brings back the data, the tokens and the keys of its cluster
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/storage/raft/snapshot-force"
+    method: POST
+    ca_path: "{{ _vault_ca_file }}"
+    headers:
+      X-Vault-Token: "{{ _vault_restore_init.json.root_token }}"
+      Content-Type: application/octet-stream
+    src: "{{ vault_restore_snapshot }}"
+    remote_src: true
+    status_code: [200, 204]
+  changed_when: true
+  no_log: true
+
+- name: Restart Vault, which then starts sealed under the keys of the cluster of the snapshot
+  ansible.builtin.systemd_service:
+    name: vault
+    state: restarted
+
+- name: Wait until the API answers again
+  ansible.builtin.uri:
+    url: "{{ _vault_api_addr }}/v1/sys/seal-status"
+    ca_path: "{{ _vault_ca_file }}"
+  register: _vault_restore_restarted
+  until: _vault_restore_restarted.status | default(0) == 200
+  retries: 30
+  delay: 2

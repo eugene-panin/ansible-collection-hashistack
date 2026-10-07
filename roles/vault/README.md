@@ -36,6 +36,23 @@ If Vault is uninitialised but the file already exists, the role stops instead
 of initialising. The file would belong to another cluster, and overwriting it
 would lose that cluster's keys.
 
+## Restoring
+
+On a new server that replaces a lost one, `vault_restore_snapshot` names a
+raft snapshot on the first node, taken with `vault operator raft snapshot
+save`, and `vault_unseal_keys` the keys of the cluster it is of. When Vault is
+not initialised yet, the role initialises it with one key of its own, unseals
+it, restores the snapshot over it with `snapshot-force`, and restarts it. The
+snapshot brings back the data, the tokens and the root key of its cluster, so
+Vault starts sealed under the old keys, and the role unseals it with them.
+The key of its own is never saved: the snapshot made it worthless.
+
+An initialised Vault is left as it is, so a second run changes nothing. The
+`restore` scenario takes a snapshot with a secret in it, removes Vault, its
+data and its configuration, restores, and checks the secret, the root token of
+the old cluster, and that the node unseals itself with the old keys after a
+restart.
+
 ## Sealing
 
 Vault seals itself every time it starts: after a restart, an upgrade, a
@@ -83,6 +100,7 @@ The full list is in `meta/argument_specs.yml`. The ones you will touch:
 | `vault_pki_dir` | `""` | Where a CA is generated when not given |
 | `vault_init_output_path` | `""` | Where the init result is written |
 | `vault_unseal_keys` | `[]` | Unseal keys, as values |
+| `vault_restore_snapshot` | `""` | Raft snapshot to restore into a new cluster |
 | `vault_init_key_shares`, `vault_init_key_threshold` | `5`, `3` | Shamir split |
 | `vault_extra_config` | `{}` | Merged into the rendered config |
 

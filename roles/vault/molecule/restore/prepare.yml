@@ -1,0 +1,64 @@
+---
+- name: Make the cluster the snapshot is of, with a secret in it
+  hosts: all
+  become: true
+  roles:
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+  post_tasks:
+    - name: Read the root token of that cluster
+      ansible.builtin.set_fact:
+        _vault_test_source: "{{ lookup('ansible.builtin.file', vault_init_output_path) | from_json }}"
+      no_log: true
+
+    - name: Mount a KV engine
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/mounts/kv"
+        method: POST
+        ca_path: /etc/vault.d/tls/ca.pem
+        headers:
+          X-Vault-Token: "{{ _vault_test_source.root_token }}"
+        body_format: json
+        body:
+          type: kv
+          options:
+            version: "2"
+        status_code: [204]
+
+    - name: Write a secret
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/kv/data/probe"
+        method: POST
+        ca_path: /etc/vault.d/tls/ca.pem
+        headers:
+          X-Vault-Token: "{{ _vault_test_source.root_token }}"
+        body_format: json
+        body:
+          data:
+            value: from-the-snapshot
+
+    - name: Take a snapshot
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/storage/raft/snapshot"
+        ca_path: /etc/vault.d/tls/ca.pem
+        headers:
+          X-Vault-Token: "{{ _vault_test_source.root_token }}"
+        dest: /root/source.snap
+        mode: "0600"
+
+- name: Lose the server, keeping the snapshot
+  hosts: all
+  become: true
+  tasks:
+    - name: Stop Vault
+      ansible.builtin.systemd_service:
+        name: vault
+        state: stopped
+
+    - name: Remove Vault, its data and its configuration, as on a new server
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/vault
+        - /opt/vault/data
+        - /etc/vault.d

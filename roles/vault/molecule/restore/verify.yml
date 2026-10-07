@@ -1,0 +1,59 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  vars:
+    _vault_test_source: "{{ lookup('ansible.builtin.file', vault_init_output_path) | from_json }}"
+  tasks:
+    - name: Read the secret of the snapshot with the root token of its cluster
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/kv/data/probe"
+        ca_path: /etc/vault.d/tls/ca.pem
+        headers:
+          X-Vault-Token: "{{ _vault_test_source.root_token }}"
+        return_content: true
+      register: _vault_test_secret
+
+    - name: Assert the secret came back
+      ansible.builtin.assert:
+        that:
+          - _vault_test_secret.json.data.data.value == 'from-the-snapshot'
+        quiet: true
+
+    - name: Read the keys the node unseals with
+      ansible.builtin.slurp:
+        src: /etc/vault.d/unseal-keys
+      register: _vault_test_node_keys
+
+    - name: Assert they are the keys of the cluster of the snapshot
+      ansible.builtin.assert:
+        that:
+          - (_vault_test_node_keys.content | b64decode).split() == _vault_test_source.keys_base64
+        quiet: true
+
+    - name: Restart Vault
+      ansible.builtin.systemd_service:
+        name: vault
+        state: restarted
+
+    - name: Wait until Vault has unsealed itself with them
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/sys/seal-status"
+        ca_path: /etc/vault.d/tls/ca.pem
+        return_content: true
+      register: _vault_test_restarted
+      until: not (_vault_test_restarted.json.sealed | default(true))
+      retries: 30
+      delay: 2
+
+    - name: Read the secret again
+      ansible.builtin.uri:
+        url: "https://{{ vault_bind_address }}:8200/v1/kv/data/probe"
+        ca_path: /etc/vault.d/tls/ca.pem
+        headers:
+          X-Vault-Token: "{{ _vault_test_source.root_token }}"
+        return_content: true
+      register: _vault_test_secret_again
+      until: _vault_test_secret_again.status | default(0) == 200
+      retries: 15
+      delay: 2

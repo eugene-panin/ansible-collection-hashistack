@@ -108,6 +108,17 @@ argument_specs:
         elements: str
         default: []
         description: Unseal keys as values, from any secret store.
+      vault_restore_snapshot:
+        type: str
+        default: ""
+        description:
+          - Raft snapshot on the first node to restore when Vault is not
+            initialised yet, such as on a new server that replaces a lost one.
+          - The role initialises Vault with a key of its own, restores the
+            snapshot over it, and never saves that key; the snapshot brings
+            back the data, the tokens and the unseal keys of its cluster,
+            which O(vault_unseal_keys) must give.
+          - An initialised Vault is left as it is.
       vault_auto_unseal:
         type: bool
         default: false
