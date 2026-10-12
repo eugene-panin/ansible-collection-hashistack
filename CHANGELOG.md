@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-12
+
+### Fixed
+
+- `consul`: a new `consul_acl_agent_token` or `consul_acl_dns_token` takes
+  the place of the old one. Consul refuses to change a token's secret, so a
+  rotated token failed the run; now the token with the old secret is deleted
+  and made again with the new one. The `rotation` scenario covers it.
+
 ## [0.8.0] - 2026-10-07
 
 ### Added

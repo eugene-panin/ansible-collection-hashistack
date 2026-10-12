@@ -27,11 +27,13 @@
             == [['QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']]
         quiet: true
 
-- name: Rotate, second half
+- name: Rotate, second half, with the agent and DNS tokens made anew
   hosts: all
   become: true
   vars:
     consul_gossip_keys:
       - QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=
+    consul_acl_agent_token: 7a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d
+    consul_acl_dns_token: 0f1e2d3c-4b5a-4968-8776-655443322110
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

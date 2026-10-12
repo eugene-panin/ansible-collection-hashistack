@@ -39,6 +39,26 @@
             == [['QUtMNOaDxsZL0l5pnG3vXXpdEUJUATl6sEQlFPdNcvI=']]
         quiet: true
 
+    - name: Look the tokens up by their secrets, old and new
+      ansible.builtin.uri:
+        url: https://127.0.0.1:8501/v1/acl/token/self
+        validate_certs: false
+        headers:
+          X-Consul-Token: "{{ item }}"
+        status_code: [200, 403]
+      loop:
+        - 7a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d
+        - 0f1e2d3c-4b5a-4968-8776-655443322110
+        - 2c9d8e7f-6a5b-4c3d-8e1f-a0b9c8d7e6f5
+        - 5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b
+      register: _consul_rotation_tokens
+
+    - name: Assert the new tokens work and the old ones are gone
+      ansible.builtin.assert:
+        that:
+          - _consul_rotation_tokens.results | map(attribute='status') | list == [200, 200, 403, 403]
+        quiet: true
+
     - name: Restart the agent
       ansible.builtin.systemd_service:
         name: consul

@@ -11,6 +11,17 @@
     - _consul_primary | bool
     - _consul_management_token | length > 0
 
+- name: Replace this node's agent token when its secret changed
+  ansible.builtin.include_tasks: token.yml
+  vars:
+    _consul_token_name: agent
+    _consul_token_accessor: "{{ _consul_agent_accessor }}"
+    _consul_token_secret: "{{ _consul_agent_token }}"
+  when:
+    - _consul_live | bool
+    - _consul_management_token | length > 0
+    - _consul_agent_token | length > 0
+
 - name: Ensure this node's agent token exists, scoped by its node identity
   community.general.consul_token:
     state: present
@@ -57,6 +68,18 @@
     - _consul_management_token | length > 0
     - _consul_dns_token | length > 0
   no_log: true
+
+- name: Replace the DNS token when its secret changed
+  ansible.builtin.include_tasks: token.yml
+  vars:
+    _consul_token_name: DNS
+    _consul_token_accessor: "{{ _consul_dns_accessor }}"
+    _consul_token_secret: "{{ _consul_dns_token }}"
+  when:
+    - _consul_live | bool
+    - _consul_primary | bool
+    - _consul_management_token | length > 0
+    - _consul_dns_token | length > 0
 
 - name: Ensure the DNS token exists
   community.general.consul_token:

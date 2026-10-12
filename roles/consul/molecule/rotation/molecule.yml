@@ -28,6 +28,7 @@ provisioner:
         consul_pki_ca_key: "{{ lookup('ansible.builtin.file', lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') ~ '/given-ca/ca-key.pem') }}"
         consul_acl_bootstrap_token: 8b4c1a2e-3f5d-4e6a-9b7c-0d1e2f3a4b5c
         consul_acl_agent_token: 2c9d8e7f-6a5b-4c3d-8e1f-a0b9c8d7e6f5
+        consul_acl_dns_token: 5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b
   playbooks:
     prepare: prepare.yml
     converge: converge.yml

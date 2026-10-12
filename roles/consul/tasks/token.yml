@@ -1,0 +1,29 @@
+---
+# Consul does not let a token's secret change: when the secret given for an
+# accessor is not the one Consul has, the old token goes, and the task after
+# this file makes it again with the new secret.
+- name: Read the token, to compare its secret, of {{ _consul_token_name }}
+  ansible.builtin.uri:
+    url: "{{ _consul_api_addr }}/v1/acl/token/{{ _consul_token_accessor }}"
+    headers:
+      X-Consul-Token: "{{ _consul_management_token }}"
+    ca_path: "{{ _consul_api_ca }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  check_mode: false
+  register: _consul_token_current
+  no_log: true
+
+- name: Delete the token whose secret was made anew, of {{ _consul_token_name }}
+  community.general.consul_token:
+    state: absent
+    accessor_id: "{{ _consul_token_accessor }}"
+    token: "{{ _consul_management_token }}"
+    scheme: "{{ _consul_api_scheme }}"
+    host: 127.0.0.1
+    port: "{{ _consul_api_port | int }}"
+    ca_path: "{{ _consul_api_ca }}"
+  when:
+    - _consul_token_current.status == 200
+    - _consul_token_current.json.SecretID != _consul_token_secret
+  no_log: true
