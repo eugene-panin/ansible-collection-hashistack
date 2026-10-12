@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-12
+
+### Fixed
+
+- `hashicorp_release`: the download tries five times, five seconds apart. One
+  connection reset by releases.hashicorp.com failed the whole run.
+
 ## [0.8.1] - 2026-10-12
 
 ### Fixed

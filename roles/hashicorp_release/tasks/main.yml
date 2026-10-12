@@ -50,6 +50,10 @@
     owner: root
     group: root
     mode: '0644'
+  register: _hashicorp_release_download
+  until: _hashicorp_release_download is succeeded
+  retries: 5
+  delay: 5
   when:
     - not _hashicorp_release_present | bool
     - not ansible_check_mode
