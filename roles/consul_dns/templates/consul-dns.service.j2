@@ -1,0 +1,20 @@
+{{ ansible_managed | comment }}
+[Unit]
+Description=Route the Consul domains to Consul through systemd-resolved
+After=systemd-resolved.service
+PartOf=systemd-resolved.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/bin/sh -c 'ip link show {{ consul_dns_link }} >/dev/null 2>&1 || ip link add {{ consul_dns_link }} type dummy'
+ExecStart=/usr/sbin/ip address replace {{ consul_dns_link_address }} dev {{ consul_dns_link }}
+ExecStart=/usr/sbin/ip link set {{ consul_dns_link }} up
+ExecStart=/usr/bin/resolvectl dns {{ consul_dns_link }} {{ consul_dns_server }}
+ExecStart=/usr/bin/resolvectl domain {{ consul_dns_link }} {{ consul_dns_domains | map('regex_replace', '^', '~') | join(' ') }}
+ExecStart=/usr/bin/resolvectl default-route {{ consul_dns_link }} false
+ExecStart=/usr/bin/resolvectl dnssec {{ consul_dns_link }} no
+ExecStop=/usr/sbin/ip link delete {{ consul_dns_link }}
+
+[Install]
+WantedBy=systemd-resolved.service

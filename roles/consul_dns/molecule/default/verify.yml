@@ -16,7 +16,7 @@
         executable: /bin/bash
       changed_when: true
 
-    - name: Read the domains resolved routes to its global DNS servers
+    - name: Read the domains resolved routes per interface
       ansible.builtin.command:
         argv:
           - resolvectl
@@ -24,10 +24,11 @@
       register: _consul_dns_test_domains
       changed_when: false
 
-    - name: Assert the Consul domains are routing-only, so other names never reach Consul
+    - name: Assert the Consul domains are routing-only on their own interface, so other names never reach Consul
       ansible.builtin.assert:
         that:
-          - "'Global: ~consul ~int.example.test' in _consul_dns_test_domains.stdout_lines"
+          - "_consul_dns_test_domains.stdout_lines | select('match', '^Link [0-9]+ [(]consul-dns[)]: ~consul ~int.example.test$') | list | length == 1"
+          - "_consul_dns_test_domains.stdout_lines | select('match', '^Global:.*consul') | list | length == 0"
         quiet: true
 
     - name: Ask each resolver address for Consul by both domains
@@ -68,5 +69,25 @@
       register: _consul_dns_test_outside
       until: _consul_dns_test_outside.stdout_lines | select('match', '^[0-9.]+$') | list | length > 0
       retries: 5
+      delay: 2
+      changed_when: false
+
+    - name: Restart resolved, which forgets what an interface it does not manage was told
+      ansible.builtin.systemd_service:
+        name: systemd-resolved
+        state: restarted
+
+    - name: Ask resolved for Consul again after its restart
+      ansible.builtin.command:
+        argv:
+          - dig
+          - "@127.0.0.53"
+          - consul.service.consul
+          - +short
+          - +time=2
+          - +tries=1
+      register: _consul_dns_test_restarted
+      until: _consul_dns_test_restarted.stdout_lines | select('equalto', _consul_dns_test_address) | list | length == 1
+      retries: 15
       delay: 2
       changed_when: false

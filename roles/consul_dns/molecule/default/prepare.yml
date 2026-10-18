@@ -50,3 +50,22 @@
         enabled: true
         state: restarted
         daemon_reload: true
+
+    - name: Ensure the resolved drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/systemd/resolved.conf.d
+        state: directory
+        mode: '0755'
+
+    - name: Add a global DNS server, as a provider does, such as GCE's metadata server
+      ansible.builtin.copy:
+        content: |
+          [Resolve]
+          DNS={{ _consul_dns_prepare_upstream.stdout }}
+        dest: /etc/systemd/resolved.conf.d/00-provider.conf
+        mode: '0644'
+
+    - name: Ensure systemd-resolved runs with the provider's server too
+      ansible.builtin.systemd_service:
+        name: systemd-resolved
+        state: restarted

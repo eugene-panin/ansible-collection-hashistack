@@ -3,3 +3,5 @@ consul_dns_server: 127.0.0.1:8600
 consul_dns_domains:
   - consul
 consul_dns_listen_addresses: []
+consul_dns_link: consul-dns
+consul_dns_link_address: 169.254.53.53/32
