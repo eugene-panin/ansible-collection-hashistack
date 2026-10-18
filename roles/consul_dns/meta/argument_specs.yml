@@ -30,3 +30,16 @@ argument_specs:
           - Extra addresses resolved listens on, port 53, such as the WireGuard
             address. The address does not have to exist yet when resolved
             starts.
+      consul_dns_link:
+        type: str
+        default: consul-dns
+        description:
+          - Dummy interface that carries Consul as the DNS server of the
+            Consul domains. On an interface of their own, they do not share
+            the global servers with ones a provider adds, such as GCE's.
+      consul_dns_link_address:
+        type: str
+        default: 169.254.53.53/32
+        description:
+          - Address of that interface, so that resolved uses it. Link-local,
+            reachable from nowhere else.

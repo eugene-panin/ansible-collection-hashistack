@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-18
+
+### Fixed
+
+- `consul_dns`: Consul names resolve on a host whose provider adds a global
+  DNS server to resolved, as GCE does. resolved keeps one current server for
+  all its global ones, and once on the provider's sent `.consul` there, to an
+  NXDOMAIN. The Consul domains now go to Consul on a dummy interface of their
+  own, `consul-dns`, set by a unit of the same name that starts with resolved;
+  the drop-in keeps only the extra listen addresses. The scenario adds a
+  global server, as GCE does, and restarts resolved before it checks again.
+
 ## [0.9.0] - 2026-10-18
 
 ### Added

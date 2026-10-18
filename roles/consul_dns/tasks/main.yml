@@ -5,9 +5,12 @@
       - consul_dns_server is match('^[^:]+:[0-9]+$')
       - consul_dns_domains | length > 0
       - consul_dns_listen_addresses | type_debug == 'list'
+      - consul_dns_link is match('^[a-zA-Z0-9_-]{1,15}$')
+      - consul_dns_link_address is match('^[0-9.]+/[0-9]+$')
     fail_msg: >-
       consul_dns_server is host:port, consul_dns_domains names at least one
-      domain, and consul_dns_listen_addresses is a list.
+      domain, consul_dns_listen_addresses is a list, consul_dns_link an
+      interface name and consul_dns_link_address an address with its prefix.
     quiet: true
 
 - name: Ask whether systemd-resolved is running
@@ -56,7 +59,7 @@
     group: root
     mode: '0755'
 
-- name: Route the Consul domains to Consul
+- name: Serve resolved on the extra addresses
   ansible.builtin.template:
     src: consul.conf.j2
     dest: /etc/systemd/resolved.conf.d/consul.conf
@@ -64,3 +67,21 @@
     group: root
     mode: '0644'
   notify: "restart systemd-resolved"
+
+- name: Route the Consul domains to Consul on an interface of their own
+  ansible.builtin.template:
+    src: consul-dns.service.j2
+    dest: /etc/systemd/system/consul-dns.service
+    owner: root
+    group: root
+    mode: '0644'
+  register: _consul_dns_unit
+  notify: "restart consul-dns"
+
+- name: Ensure the Consul domains are routed at boot and now
+  ansible.builtin.systemd_service:
+    name: consul-dns
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not (ansible_check_mode and _consul_dns_unit is changed)
