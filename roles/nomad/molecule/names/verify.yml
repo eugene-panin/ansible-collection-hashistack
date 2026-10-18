@@ -1,0 +1,59 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Read the agent certificate
+      community.crypto.x509_certificate_info:
+        path: /etc/nomad.d/tls/nomad.pem
+      register: _nomad_names_cert
+
+    - name: Assert the certificate carries the service name, and no address it did not before
+      ansible.builtin.assert:
+        that:
+          - _nomad_names_cert.subject_alt_name
+            == ['DNS:server.global.nomad', 'DNS:client.global.nomad', 'DNS:nomad.service.consul',
+                'DNS:localhost', 'IP:127.0.0.1', 'IP:' ~ nomad_bind_address]
+        fail_msg: "the certificate carries {{ _nomad_names_cert.subject_alt_name }}"
+        quiet: true
+
+    - name: Read when the agent started on the old certificate
+      ansible.builtin.slurp:
+        src: /root/nomad-old-cert-started
+      register: _nomad_names_old_start
+
+    - name: Read when the agent started last
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - nomad
+          - --property=ActiveEnterTimestampMonotonic
+          - --value
+      register: _nomad_names_start
+      changed_when: false
+
+    - name: Assert the run that reissued the certificate restarted the agent
+      ansible.builtin.assert:
+        that:
+          - _nomad_names_start.stdout | int > _nomad_names_old_start.content | b64decode | int
+        quiet: true
+
+    - name: Ask the agent for its certificate under the service name
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          openssl s_client -connect {{ nomad_bind_address }}:4646 -CAfile /etc/nomad.d/tls/ca.pem
+          -verify_hostname nomad.service.consul </dev/null 2>/dev/null
+          | grep 'Verify return code'
+        executable: /bin/bash
+      register: _nomad_names_verify
+      changed_when: false
+
+    - name: Assert the agent serves a certificate valid for nomad.service.consul
+      ansible.builtin.assert:
+        that:
+          - "'Verify return code: 0 (ok)' in _nomad_names_verify.stdout"
+        fail_msg: "{{ _nomad_names_verify.stdout }}"
+        quiet: true

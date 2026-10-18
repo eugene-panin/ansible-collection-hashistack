@@ -123,6 +123,10 @@ manual by design.
 - Incoming TLS is verified for RPC between agents, not for the HTTP API, so a
   browser can open the UI without a client certificate. The API still needs a
   token.
+- A server's certificate also names `consul.service.consul`, so the UI opens
+  there without a warning. A server holding a certificate without it gets a
+  new one on the next run, and the agent restarts; the `names` scenario checks
+  it.
 
 ## Variables
 

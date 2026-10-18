@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-18
+
+### Added
+
+- `consul`, `nomad`: a server's certificate also names its Consul service,
+  `consul.service.consul` and `nomad.service.consul` (or the
+  `consul.server_service_name` given in `nomad_extra_config`), so their UIs
+  open there without a warning, as Vault's already did. A node with a
+  certificate from an earlier release gets a new one on the next run and its
+  agent restarts once; the run after changes nothing. No address is added to
+  any certificate. The `names` scenarios cover it.
+
 ## [0.8.2] - 2026-10-12
 
 ### Fixed

@@ -36,8 +36,9 @@ _consul_gossip_keys_effective: >-
 _consul_gossip_value: "{{ _consul_gossip_keys_effective | first | default('') }}"
 
 _consul_cert_sans: >-
-  {{ ['DNS:' ~ _consul_cert_cn, 'DNS:localhost', 'IP:127.0.0.1']
-     + ['IP:' ~ consul_bind_address] }}
+  {{ ['DNS:' ~ _consul_cert_cn]
+     + (['DNS:consul.service.consul'] if consul_server | bool else [])
+     + ['DNS:localhost', 'IP:127.0.0.1', 'IP:' ~ consul_bind_address] }}
 
 _consul_remote_ca: "{{ consul_tls_dir }}/ca.pem"
 _consul_remote_cert: "{{ consul_tls_dir }}/agent.pem"

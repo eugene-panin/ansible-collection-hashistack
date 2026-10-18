@@ -1,0 +1,91 @@
+---
+- name: Put back the certificate a release before 0.9.0 issued, without the service name
+  hosts: all
+  become: true
+  vars:
+    _nomad_names_ca: "{{ nomad_pki_dir }}/nomad-ca"
+  tasks:
+    - name: Build a request for the names a release before 0.9.0 asked for
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: /etc/nomad.d/tls/nomad-key.pem
+        common_name: server.global.nomad
+        subject_alt_name:
+          - DNS:server.global.nomad
+          - DNS:client.global.nomad
+          - DNS:localhost
+          - IP:127.0.0.1
+          - "IP:{{ nomad_bind_address }}"
+        key_usage:
+          - digitalSignature
+          - keyEncipherment
+        key_usage_critical: true
+        extended_key_usage:
+          - serverAuth
+          - clientAuth
+      register: _nomad_names_old_csr
+      changed_when: false
+
+    - name: Sign it with the CA on the controller
+      community.crypto.x509_certificate_pipe:
+        csr_content: "{{ _nomad_names_old_csr.csr }}"
+        provider: ownca
+        ownca_path: "{{ _nomad_names_ca }}.pem"
+        ownca_privatekey_path: "{{ _nomad_names_ca }}-key.pem"
+        ownca_not_before: -1h
+        ownca_not_after: +825d
+      register: _nomad_names_old_cert
+      delegate_to: localhost
+      become: false
+
+    - name: Install the old certificate
+      ansible.builtin.copy:
+        content: "{{ _nomad_names_old_cert.certificate | trim }}\n"
+        dest: /etc/nomad.d/tls/nomad.pem
+        owner: root
+        group: root
+        mode: '0640'
+
+    - name: Restart the agent onto the old certificate
+      ansible.builtin.systemd_service:
+        name: nomad
+        state: restarted
+
+    - name: Wait for the agent to serve HTTPS again
+      ansible.builtin.wait_for:
+        port: 4646
+        host: "{{ nomad_bind_address }}"
+        timeout: 60
+
+    - name: Read when the agent started on the old certificate
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - nomad
+          - --property=ActiveEnterTimestampMonotonic
+          - --value
+      register: _nomad_names_started
+      changed_when: false
+
+    - name: Keep that start for verify
+      ansible.builtin.copy:
+        content: "{{ _nomad_names_started.stdout }}\n"
+        dest: /root/nomad-old-cert-started
+        mode: '0600'
+
+    - name: Ask the agent for its certificate under the service name
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          openssl s_client -connect {{ nomad_bind_address }}:4646 -CAfile /etc/nomad.d/tls/ca.pem
+          -verify_hostname nomad.service.consul </dev/null 2>/dev/null
+          | grep 'Verify return code'
+        executable: /bin/bash
+      register: _nomad_names_old_verify
+      changed_when: false
+
+    - name: Assert the old certificate does not carry the service name
+      ansible.builtin.assert:
+        that:
+          - "'Verify return code: 0 (ok)' not in _nomad_names_old_verify.stdout"
+        quiet: true

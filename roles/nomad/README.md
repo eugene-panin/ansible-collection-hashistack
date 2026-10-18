@@ -63,7 +63,11 @@ gets 403.
 
 The certificate names `server.<region>.nomad` and `client.<region>.nomad` as
 the node's roles require, and is issued by the `tls_certificate` role: the key
-is generated on the node, the controller signs it.
+is generated on the node, the controller signs it. A server's certificate also
+names `nomad.service.consul`, the name it registers in Consul under (or the
+`consul.server_service_name` given in `nomad_extra_config`), so the UI there
+opens without a warning. A node holding a certificate without it gets a new
+one on the next run, and the agent restarts; the `names` scenario checks it.
 
 ## Which address job ports land on
 

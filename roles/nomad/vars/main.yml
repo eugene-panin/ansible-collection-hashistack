@@ -5,9 +5,11 @@ _nomad_primary: "{{ inventory_hostname == ansible_play_hosts | first }}"
 _nomad_api_addr: "https://{{ nomad_bind_address }}:4646"
 _nomad_ca_file: "{{ nomad_tls_dir }}/ca.pem"
 
+_nomad_service_name: "{{ nomad_extra_config.consul.server_service_name | default('nomad') }}"
 _nomad_cert_sans: >-
   {{ (['DNS:server.' ~ nomad_region ~ '.nomad'] if nomad_server | bool else [])
      + (['DNS:client.' ~ nomad_region ~ '.nomad'] if nomad_client | bool else [])
+     + (['DNS:' ~ _nomad_service_name ~ '.service.consul'] if nomad_server | bool else [])
      + ['DNS:localhost', 'IP:127.0.0.1', 'IP:' ~ nomad_bind_address] }}
 _nomad_cert_cn: "{{ ('server.' if nomad_server | bool else 'client.') ~ nomad_region ~ '.nomad' }}"
 
