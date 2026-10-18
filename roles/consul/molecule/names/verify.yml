@@ -1,0 +1,59 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Read the agent certificate
+      community.crypto.x509_certificate_info:
+        path: /etc/consul.d/tls/agent.pem
+      register: _consul_names_cert
+
+    - name: Assert the certificate carries the service name, and no address it did not before
+      ansible.builtin.assert:
+        that:
+          - _consul_names_cert.subject_alt_name
+            == ['DNS:server.dc1.consul', 'DNS:consul.service.consul', 'DNS:localhost',
+                'IP:127.0.0.1', 'IP:' ~ consul_bind_address]
+        fail_msg: "the certificate carries {{ _consul_names_cert.subject_alt_name }}"
+        quiet: true
+
+    - name: Read when the agent started on the old certificate
+      ansible.builtin.slurp:
+        src: /root/consul-old-cert-started
+      register: _consul_names_old_start
+
+    - name: Read when the agent started last
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - consul
+          - --property=ActiveEnterTimestampMonotonic
+          - --value
+      register: _consul_names_start
+      changed_when: false
+
+    - name: Assert the run that reissued the certificate restarted the agent
+      ansible.builtin.assert:
+        that:
+          - _consul_names_start.stdout | int > _consul_names_old_start.content | b64decode | int
+        quiet: true
+
+    - name: Ask the agent for its certificate under the service name
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          openssl s_client -connect 127.0.0.1:8501 -CAfile /etc/consul.d/tls/ca.pem
+          -verify_hostname consul.service.consul </dev/null 2>/dev/null
+          | grep 'Verify return code'
+        executable: /bin/bash
+      register: _consul_names_verify
+      changed_when: false
+
+    - name: Assert the agent serves a certificate valid for consul.service.consul
+      ansible.builtin.assert:
+        that:
+          - "'Verify return code: 0 (ok)' in _consul_names_verify.stdout"
+        fail_msg: "{{ _consul_names_verify.stdout }}"
+        quiet: true

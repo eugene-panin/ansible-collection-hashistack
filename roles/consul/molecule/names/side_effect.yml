@@ -1,0 +1,90 @@
+---
+- name: Put back the certificate a release before 0.9.0 issued, without the service name
+  hosts: all
+  become: true
+  vars:
+    _consul_names_ca: "{{ consul_pki_dir }}/consul-agent-ca"
+  tasks:
+    - name: Build a request for the names a release before 0.9.0 asked for
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: /etc/consul.d/tls/agent-key.pem
+        common_name: server.dc1.consul
+        subject_alt_name:
+          - DNS:server.dc1.consul
+          - DNS:localhost
+          - IP:127.0.0.1
+          - "IP:{{ consul_bind_address }}"
+        key_usage:
+          - digitalSignature
+          - keyEncipherment
+        key_usage_critical: true
+        extended_key_usage:
+          - serverAuth
+          - clientAuth
+      register: _consul_names_old_csr
+      changed_when: false
+
+    - name: Sign it with the CA on the controller
+      community.crypto.x509_certificate_pipe:
+        csr_content: "{{ _consul_names_old_csr.csr }}"
+        provider: ownca
+        ownca_path: "{{ _consul_names_ca }}.pem"
+        ownca_privatekey_path: "{{ _consul_names_ca }}-key.pem"
+        ownca_not_before: -1h
+        ownca_not_after: +825d
+      register: _consul_names_old_cert
+      delegate_to: localhost
+      become: false
+
+    - name: Install the old certificate
+      ansible.builtin.copy:
+        content: "{{ _consul_names_old_cert.certificate | trim }}\n"
+        dest: /etc/consul.d/tls/agent.pem
+        owner: consul
+        group: consul
+        mode: '0640'
+
+    - name: Restart the agent onto the old certificate
+      ansible.builtin.systemd_service:
+        name: consul
+        state: restarted
+
+    - name: Wait for the agent to serve HTTPS again
+      ansible.builtin.wait_for:
+        port: 8501
+        host: 127.0.0.1
+        timeout: 60
+
+    - name: Read when the agent started on the old certificate
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - consul
+          - --property=ActiveEnterTimestampMonotonic
+          - --value
+      register: _consul_names_started
+      changed_when: false
+
+    - name: Keep that start for verify
+      ansible.builtin.copy:
+        content: "{{ _consul_names_started.stdout }}\n"
+        dest: /root/consul-old-cert-started
+        mode: '0600'
+
+    - name: Ask the agent for its certificate under the service name
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          openssl s_client -connect 127.0.0.1:8501 -CAfile /etc/consul.d/tls/ca.pem
+          -verify_hostname consul.service.consul </dev/null 2>/dev/null
+          | grep 'Verify return code'
+        executable: /bin/bash
+      register: _consul_names_old_verify
+      changed_when: false
+
+    - name: Assert the old certificate does not carry the service name
+      ansible.builtin.assert:
+        that:
+          - "'Verify return code: 0 (ok)' not in _consul_names_old_verify.stdout"
+        quiet: true
